@@ -58,6 +58,7 @@ interface Rule {
   filterType: 'all' | 'title_contains' | 'title_any_of'
   filterValue: string | null
   excludeValue: string | null
+  includeShorts?: boolean
   isActive: boolean
   channelName: string
   playlistName: string
@@ -90,7 +91,8 @@ export default function RulesPage() {
     targetPlaylistId: '',
     filterType: 'all' as 'all' | 'title_contains' | 'title_any_of',
     filterValue: '',
-    excludeValue: ''
+    excludeValue: '',
+    includeShorts: false
   })
 
   useEffect(() => {
@@ -148,7 +150,7 @@ export default function RulesPage() {
         targetPlaylistId: '',
         filterType: 'all',
         filterValue: '',
-        excludeValue: ''
+        excludeValue: '', includeShorts: false
       })
     }
   }
@@ -160,7 +162,8 @@ export default function RulesPage() {
       targetPlaylistId: rule.targetPlaylistId,
       filterType: rule.filterType,
       filterValue: rule.filterValue || '',
-      excludeValue: rule.excludeValue || ''
+      excludeValue: rule.excludeValue || '',
+      includeShorts: rule.includeShorts ?? false
     })
     setIsDialogOpen(true)
   }
@@ -188,7 +191,8 @@ export default function RulesPage() {
         targetPlaylistId: formData.targetPlaylistId,
         filterType: formData.filterType,
         filterValue: formData.filterType === 'all' ? null : formData.filterValue.trim(),
-        excludeValue: formData.excludeValue.trim() ? formData.excludeValue.trim() : null
+        excludeValue: formData.excludeValue.trim() ? formData.excludeValue.trim() : null,
+        includeShorts: formData.includeShorts
       }
 
       const res = await fetch(url, {
@@ -205,7 +209,7 @@ export default function RulesPage() {
       toast.success(isEditing ? 'Regla actualizada correctamente' : 'Regla creada correctamente')
       setIsDialogOpen(false)
       setEditingRuleId(null)
-      setFormData({ watchedChannelId: '', targetPlaylistId: '', filterType: 'all', filterValue: '', excludeValue: '' })
+      setFormData({ watchedChannelId: '', targetPlaylistId: '', filterType: 'all', filterValue: '', excludeValue: '', includeShorts: false })
       fetchData()
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'No se pudo guardar la regla'
@@ -517,6 +521,24 @@ export default function RulesPage() {
                 <p className="text-xs text-slate-400">
                   Si el título del video contiene alguna de estas palabras (separadas por comas), no se añadirá a la lista.
                 </p>
+              </div>
+
+              {/* Opción de incluir/excluir Shorts */}
+              <div className="flex items-center justify-between p-3 rounded-lg border border-white/[0.04] bg-white/[0.02]">
+                <div className="space-y-0.5">
+                  <Label htmlFor="includeShorts" className="text-slate-300 text-sm font-medium">
+                    Incluir YouTube Shorts
+                  </Label>
+                  <p className="text-xs text-slate-400">
+                    Si está desactivado, se omitirán los videos de 60 segundos o menos.
+                  </p>
+                </div>
+                <Switch
+                  id="includeShorts"
+                  checked={formData.includeShorts}
+                  onCheckedChange={(checked) => setFormData({ ...formData, includeShorts: checked })}
+                  className="data-[state=checked]:bg-emerald-500"
+                />
               </div>
 
               <DialogFooter className="gap-2 sm:justify-end pt-3 border-t border-white/[0.06]">

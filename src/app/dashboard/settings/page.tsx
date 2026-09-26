@@ -270,16 +270,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="flex justify-end pt-2">
-          <Button
-            type="submit"
-            disabled={isSaving}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm shadow-indigo-600/30 px-6 cursor-pointer"
-          >
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar cambios
-          </Button>
-        </div>
       </form>
     </div>
   )

@@ -143,6 +143,7 @@ export const channelRules = pgTable("channel_rules", {
   filterType: filterTypeEnum("filter_type").notNull().default("all"),
   filterValue: text("filter_value"),
   excludeValue: text("exclude_value"),
+  includeShorts: boolean("include_shorts").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
@@ -177,6 +178,7 @@ export const syncLogs = pgTable("sync_logs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
+  executionType: text("execution_type").notNull().default("auto"), // 'auto' o 'manual'
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),

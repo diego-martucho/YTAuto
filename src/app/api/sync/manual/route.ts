@@ -11,7 +11,7 @@ import {
 import { eq, and, sql } from "drizzle-orm";
 import { getValidYouTubeAccessToken } from "@/lib/youtube/token";
 import { getLatestChannelVideos } from "@/lib/youtube/rss";
-import { addVideoToPlaylist, getPlaylistVideoIds } from "@/lib/youtube/api";
+import { addVideoToPlaylist, getPlaylistVideoIds, getVideoDurations } from "@/lib/youtube/api";
 import { matchesTitleFilter, isTitleExcluded } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
           filterType: channelRules.filterType,
           filterValue: channelRules.filterValue,
           excludeValue: channelRules.excludeValue,
+          includeShorts: channelRules.includeShorts,
           targetPlaylistTableId: targetPlaylists.id,
           targetPlaylistId: targetPlaylists.playlistId,
           targetPlaylistName: targetPlaylists.playlistName,
@@ -91,10 +92,17 @@ export async function POST(req: NextRequest) {
       if (rules.length === 0) continue;
 
       let channelVideos;
+      let videoDurations = new Map<string, number>();
       try {
         const allRecentVideos = await getLatestChannelVideos(channel.channelId);
         // Filtrar videos publicados hoy desde las 00:00hs
         channelVideos = allRecentVideos.filter((v) => v.publishedAt >= windowStart);
+
+        if (channelVideos.length > 0) {
+          const videoIds = channelVideos.map((v) => v.videoId);
+          videoDurations = await getVideoDurations(accessToken, videoIds);
+          quotaUsed += Math.ceil(videoIds.length / 50); // 1 quota por cada 50 videos
+        }
       } catch (feedErr) {
         console.error(`Error al obtener RSS de canal ${channel.channelName}:`, feedErr);
         continue;
@@ -150,7 +158,27 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
-          // 3. Regla para verificar que el video no exista ya en la lista (Requirement 8)
+          // 3. Condición de Shorts
+          if (!rule.includeShorts) {
+            const duration = videoDurations.get(video.videoId) || 0;
+            // Si la duración es 60 segundos o menos, se asume que es un short y se excluye.
+            if (duration <= 60) {
+              videosFiltered++;
+              await recordProcessedVideo({
+                videoId: video.videoId,
+                channelRuleId: rule.ruleId,
+                targetPlaylistId: rule.targetPlaylistTableId,
+                videoTitle: video.title,
+                videoUrl: video.url,
+                publishedAt: video.publishedAt,
+                status: "filtered",
+                errorMessage: "Excluido por ser un Short (duración <= 60s)",
+              });
+              continue;
+            }
+          }
+
+          // 4. Regla para verificar que el video no exista ya en la lista (Requirement 8)
           if (existingInPlaylist.has(video.videoId)) {
             videosFiltered++;
             await recordProcessedVideo({
@@ -221,6 +249,7 @@ export async function POST(req: NextRequest) {
     // Guardar registro de la sincronización en syncLogs
     await db.insert(syncLogs).values({
       userId,
+      executionType: "manual",
       channelsChecked,
       videosFound,
       videosAdded,

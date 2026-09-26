@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
         .where(eq(targetPlaylists.userId, userId));
 
       const existingIds = new Set(existingPlaylists.map(p => p.playlistId));
+      const apiIds = new Set(apiPlaylists.map(p => p.id));
       
+      // Insert new ones
       const newPlaylistsToInsert = apiPlaylists
         .filter(p => !existingIds.has(p.id))
         .map(p => ({
@@ -62,6 +64,16 @@ export async function POST(req: NextRequest) {
       if (newPlaylistsToInsert.length > 0) {
         await db.insert(targetPlaylists).values(newPlaylistsToInsert);
       }
+
+      // Delete missing ones (deleted in YouTube)
+      const missingPlaylists = existingPlaylists.filter(p => !apiIds.has(p.playlistId));
+      if (missingPlaylists.length > 0) {
+        for (const mp of missingPlaylists) {
+          await db.delete(targetPlaylists).where(eq(targetPlaylists.id, mp.id));
+        }
+      }
+
+      // We might also update names if they changed, but delete/insert is the main fix
 
       const allPlaylists = await db
         .select()

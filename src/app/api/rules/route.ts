@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
         filterType: channelRules.filterType,
         filterValue: channelRules.filterValue,
         excludeValue: channelRules.excludeValue,
+        includeShorts: channelRules.includeShorts,
         isActive: channelRules.isActive,
         createdAt: channelRules.createdAt,
         updatedAt: channelRules.updatedAt,
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     const userId = session.user.id;
 
     const body = await req.json();
-    const { watchedChannelId, targetPlaylistId, filterType, filterValue, excludeValue } = body;
+    const { watchedChannelId, targetPlaylistId, filterType, filterValue, excludeValue, includeShorts } = body;
 
     if (!watchedChannelId || !targetPlaylistId) {
       return NextResponse.json({ error: "Canal y lista son requeridos" }, { status: 400 });
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
         filterType: filterType || "all",
         filterValue: filterValue ? filterValue.trim() : null,
         excludeValue: excludeValue ? excludeValue.trim() : null,
+        includeShorts: includeShorts ?? false,
       })
       .returning();
 
@@ -94,7 +96,7 @@ export async function PATCH(req: NextRequest) {
     const userId = session.user.id;
 
     const body = await req.json();
-    const { id, watchedChannelId, targetPlaylistId, isActive, filterType, filterValue, excludeValue } = body;
+    const { id, watchedChannelId, targetPlaylistId, isActive, filterType, filterValue, excludeValue, includeShorts } = body;
 
     if (!id) {
       return NextResponse.json({ error: "ID de regla requerido" }, { status: 400 });
@@ -135,6 +137,7 @@ export async function PATCH(req: NextRequest) {
     if (filterType !== undefined) updates.filterType = filterType;
     if (filterValue !== undefined) updates.filterValue = filterValue ? filterValue.trim() : null;
     if (excludeValue !== undefined) updates.excludeValue = excludeValue ? excludeValue.trim() : null;
+    if (includeShorts !== undefined) updates.includeShorts = includeShorts;
 
     const [updatedRule] = await db
       .update(channelRules)

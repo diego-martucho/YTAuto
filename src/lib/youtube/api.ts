@@ -326,3 +326,50 @@ async function fetchChannelInfo(
       "",
   };
 }
+
+/**
+ * Retrieve duration for multiple videos in seconds.
+ * Cost: 1 quota unit per page of up to 50 videos.
+ */
+export async function getVideoDurations(
+  accessToken: string,
+  videoIds: string[]
+): Promise<Map<string, number>> {
+  const durations = new Map<string, number>();
+  if (videoIds.length === 0) return durations;
+
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const chunk = videoIds.slice(i, i + 50);
+    const params = new URLSearchParams({
+      part: "contentDetails",
+      id: chunk.join(","),
+    });
+
+    try {
+      const res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      for (const item of data.items || []) {
+        const durationIso = item.contentDetails?.duration;
+        if (durationIso) {
+          const match = durationIso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+          if (match) {
+            const hours = parseInt(match[1] || "0", 10);
+            const minutes = parseInt(match[2] || "0", 10);
+            const seconds = parseInt(match[3] || "0", 10);
+            const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+            durations.set(item.id, totalSeconds);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching durations:", e);
+    }
+  }
+
+  return durations;
+}
