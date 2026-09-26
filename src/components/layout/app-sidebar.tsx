@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { signOut } from "next-auth/react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const navigation = [
   { name: "Panel de Control", href: "/dashboard", icon: LayoutDashboard },
@@ -36,8 +38,26 @@ const navigation = [
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },
 ];
 
-export function AppSidebar({ user }: { user: any }) {
+interface SidebarUser {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
+export function AppSidebar({ user }: { user?: SidebarUser | null }) {
   const pathname = usePathname();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await signOut({ callbackUrl: "/login" });
+    } catch (error) {
+      console.error("Error signing out:", error);
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <Sidebar className="border-r border-slate-800/80 bg-[#090d16]">
@@ -92,12 +112,25 @@ export function AppSidebar({ user }: { user: any }) {
           </div>
         </div>
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          type="button"
+          onClick={() => setShowLogoutConfirm(true)}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
         >
           <LogOut className="h-4 w-4" />
           <span>Cerrar sesión</span>
         </button>
+
+        <ConfirmDialog
+          open={showLogoutConfirm}
+          onOpenChange={setShowLogoutConfirm}
+          title="¿Cerrar sesión?"
+          description="¿Estás seguro de que deseas salir de tu cuenta? Tendrás que iniciar sesión nuevamente para acceder a tu panel de control."
+          confirmText="Cerrar sesión"
+          cancelText="Cancelar"
+          variant="destructive"
+          isLoading={isLoggingOut}
+          onConfirm={handleLogout}
+        />
       </SidebarFooter>
     </Sidebar>
   );

@@ -212,9 +212,14 @@ export default function SearchPage() {
                       <Select 
                         value={selectedPlaylists[video.id] || ''} 
                         onValueChange={(val: string | null) => setSelectedPlaylists(prev => ({ ...prev, [video.id]: val ?? '' }))}
+                        itemToStringLabel={(val) => (val ? playlists.find(p => p.id === val)?.title || val : "")}
                       >
                         <SelectTrigger className="bg-slate-900/50 border-slate-800 text-slate-200">
-                          <SelectValue placeholder="Seleccionar lista" />
+                          <SelectValue placeholder="Seleccionar lista">
+                            {selectedPlaylists[video.id]
+                              ? (playlists.find(p => p.id === selectedPlaylists[video.id])?.title || selectedPlaylists[video.id])
+                              : undefined}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
                           {playlists.length > 0 ? (

@@ -36,18 +36,36 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { input } = body;
 
-    if (!input) {
-      return NextResponse.json({ error: "Input is required" }, { status: 400 });
+    if (!input || !input.trim()) {
+      return NextResponse.json({ error: "Debes ingresar una URL, @handle o ID de canal" }, { status: 400 });
     }
 
     const accessToken = await getValidYouTubeAccessToken(session.user.id);
     if (!accessToken) {
-      return NextResponse.json({ error: "No valid YouTube access token" }, { status: 403 });
+      return NextResponse.json({ error: "No se pudo obtener el token de acceso a YouTube. Inicia sesión nuevamente." }, { status: 403 });
     }
 
-    const channelInfo = await resolveChannelId(accessToken, input);
+    const channelInfo = await resolveChannelId(accessToken, input.trim());
     if (!channelInfo) {
-      return NextResponse.json({ error: "Could not resolve channel" }, { status: 404 });
+      return NextResponse.json({ error: "El canal no existe en YouTube o no se pudo encontrar" }, { status: 404 });
+    }
+
+    const existing = await db
+      .select({ id: watchedChannels.id })
+      .from(watchedChannels)
+      .where(
+        and(
+          eq(watchedChannels.userId, session.user.id),
+          eq(watchedChannels.channelId, channelInfo.channelId)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      return NextResponse.json(
+        { error: `El canal "${channelInfo.channelName}" ya está en tu lista de canales monitorizados` },
+        { status: 409 }
+      );
     }
 
     const [newChannel] = await db
