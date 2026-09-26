@@ -530,7 +530,7 @@ export default function RulesPage() {
                     Incluir YouTube Shorts
                   </Label>
                   <p className="text-xs text-slate-400">
-                    Si está desactivado, se omitirán los videos de 60 segundos o menos.
+                    Si está desactivado, se omitirán los videos de 120 segundos o menos.
                   </p>
                 </div>
                 <Switch

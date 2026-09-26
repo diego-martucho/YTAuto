@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
           if (!rule.includeShorts) {
             const duration = videoDurations.get(video.videoId) || 0;
             // Si la duración es 60 segundos o menos, se asume que es un short y se excluye.
-            if (duration <= 60) {
+            if (duration <= 120) {
               videosFiltered++;
               await recordProcessedVideo({
                 videoId: video.videoId,
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
                 videoUrl: video.url,
                 publishedAt: video.publishedAt,
                 status: "filtered",
-                errorMessage: "Excluido por ser un Short (duración <= 60s)",
+                errorMessage: "Excluido por ser un Short (duración <= 120s)",
               });
               continue;
             }

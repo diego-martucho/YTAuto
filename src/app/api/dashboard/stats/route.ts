@@ -6,6 +6,7 @@ import {
   channelRules,
   processedVideos,
   syncLogs,
+  userSettings,
   targetPlaylists,
 } from "@/db/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
@@ -33,22 +34,58 @@ export async function GET(req: NextRequest) {
       .where(and(eq(watchedChannels.userId, userId), eq(channelRules.isActive, true)));
     const activeRulesCount = rulesResult?.count || 0;
 
-    // 3. Videos añadidos hoy (desde 00:00hs)
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-
-    const [videosResult] = await db
+    // 2.5 Listas de reproducción
+    const [playlistsResult] = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(processedVideos)
-      .innerJoin(targetPlaylists, eq(processedVideos.targetPlaylistId, targetPlaylists.id))
+      .from(targetPlaylists)
+      .where(eq(targetPlaylists.userId, userId));
+    const playlistsCount = playlistsResult?.count || 0;
+
+    // 3. Videos añadidos hoy (desde 00:00hs en la timezone del usuario)
+    const [settingsResult] = await db
+      .select({ timezone: userSettings.timezone })
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId))
+      .limit(1);
+    
+    const tz = settingsResult?.timezone || 'America/Argentina/Buenos_Aires';
+    
+    // Obtener la fecha de "hoy a las 00:00" en la zona horaria del usuario, convertida a UTC para comparar
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const y = parts.find(p => p.type === 'year')!.value;
+    const m = parts.find(p => p.type === 'month')!.value;
+    const d = parts.find(p => p.type === 'day')!.value;
+    
+    // Convertir el inicio del día del usuario a un Date object absoluto
+    const todayStartString = `${y}-${m}-${d}T00:00:00`;
+    // We can't directly parse this as local, so we construct it and let JS handle it, or we can just approximate 24h:
+    // But a better way is to query syncLogs for videosAdded where finishedAt is today.
+    // Actually, processedVideos is fine.
+    // Let's use `now` minus hours elapsed today in that timezone.
+    const hourFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+    const hParts = hourFormatter.formatToParts(new Date());
+    const currentHour = parseInt(hParts.find(p => p.type === 'hour')!.value, 10);
+    const currentMin = parseInt(hParts.find(p => p.type === 'minute')!.value, 10);
+    
+    const todayStart = new Date(Date.now() - (currentHour * 60 * 60 * 1000) - (currentMin * 60 * 1000));
+
+    // Sumar todos los videos añadidos en syncLogs que se ejecutaron hoy
+    const [syncsResult] = await db
+      .select({ totalAdded: sql<number>`sum(${syncLogs.videosAdded})::int` })
+      .from(syncLogs)
       .where(
         and(
-          eq(targetPlaylists.userId, userId),
-          eq(processedVideos.status, "added"),
-          gte(processedVideos.processedAt, todayStart)
+          eq(syncLogs.userId, userId),
+          gte(syncLogs.startedAt, todayStart)
         )
       );
-    const videosAddedToday = videosResult?.count || 0;
+    const videosAddedToday = syncsResult?.totalAdded || 0;
 
     // 4. Última sincronización
     const lastSyncLog = await db.query.syncLogs.findFirst({
@@ -85,6 +122,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       channelsCount,
       activeRulesCount,
+      playlistsCount,
       videosAddedToday,
       lastSync: lastSyncLog?.finishedAt || null,
       recentVideos,

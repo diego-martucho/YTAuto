@@ -147,9 +147,9 @@ export async function GET(req: Request) {
 
             if (!rule.includeShorts) {
               const duration = videoDurations.get(video.videoId) || 0;
-              if (duration <= 60) {
+              if (duration <= 120) {
                 videosFiltered++;
-                await recordProcessedVideo(video, rule, "filtered", "Excluido por ser un Short (duración <= 60s)");
+                await recordProcessedVideo(video, rule, "filtered", "Excluido por ser un Short (duración <= 120s)");
                 continue;
               }
             }

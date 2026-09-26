@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Radio,
-  Video,
+  Video, ListVideo,
   GitBranch,
   Clock,
   Play,
@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 interface DashboardStats {
   channelsCount: number
   activeRulesCount: number
+  playlistsCount: number
   videosAddedToday: number
   lastSync: string | null
   recentVideos: Array<{
@@ -135,7 +136,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Tarjetas de Métricas Conectadas con la BD */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {/* Canales monitoreados */}
         <div className="glass-card-interactive rounded-2xl p-5 border border-white/[0.08] flex flex-col justify-between gap-4">
           <div className="flex items-center justify-between">
@@ -151,6 +152,25 @@ export default function DashboardPage() {
           ) : (
             <div className="text-3xl font-display font-black text-slate-100 font-mono-numbers">
               {stats?.channelsCount ?? 0}
+            </div>
+          )}
+        </div>
+
+        {/* Listas de reproducción */}
+        <div className="glass-card-interactive rounded-2xl p-5 border border-white/[0.08] flex flex-col justify-between gap-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Listas de repr.
+            </span>
+            <div className="p-2 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400">
+              <ListVideo className="h-4 w-4" />
+            </div>
+          </div>
+          {loading ? (
+            <Skeleton className="h-9 w-16" />
+          ) : (
+            <div className="text-3xl font-display font-black text-slate-100 font-mono-numbers">
+              {stats?.playlistsCount ?? 0}
             </div>
           )}
         </div>
@@ -216,14 +236,19 @@ export default function DashboardPage() {
       {/* Actividad Reciente */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-display font-bold tracking-tight text-slate-100">
-            Actividad reciente
-          </h2>
-          {stats?.recentVideos && stats.recentVideos.length > 0 && (
-            <span className="text-xs text-slate-400 font-mono-numbers">
-              Últimos videos procesados
-            </span>
-          )}
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-display font-bold tracking-tight text-slate-100">
+              Actividad reciente
+            </h2>
+            {stats?.recentVideos && stats.recentVideos.length > 0 && (
+              <span className="hidden sm:inline-block text-xs text-slate-400 font-mono-numbers">
+                Últimos videos procesados
+              </span>
+            )}
+          </div>
+          <a href="/dashboard/logs" className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+            Ver todos los registros &rarr;
+          </a>
         </div>
 
         {loading ? (
