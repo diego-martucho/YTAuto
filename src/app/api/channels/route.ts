@@ -97,3 +97,13 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const body = await req.json();
+  const { id, isActive } = body;
+  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+  await db.update(watchedChannels).set({ isActive }).where(and(eq(watchedChannels.id, id), eq(watchedChannels.userId, session.user.id)));
+  return NextResponse.json({ success: true });
+}

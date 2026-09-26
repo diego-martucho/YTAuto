@@ -10,8 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 interface Playlist {
   id: string
   playlistId: string
-  name: string
-  videoCount: number
+  playlistName: string
 }
 
 export default function PlaylistsPage() {
@@ -60,7 +59,11 @@ export default function PlaylistsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de que deseas eliminar esta lista de reproducción de la base de datos? (No se eliminará de YouTube)')) return
     try {
-      const res = await fetch(`/api/playlists/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/playlists`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
       if (!res.ok) throw new Error('Error al eliminar la lista')
       setPlaylists(playlists.filter(p => p.id !== id))
       toast.success('Lista eliminada')
@@ -112,12 +115,12 @@ export default function PlaylistsPage() {
           {playlists.map((playlist) => (
             <div key={playlist.id} className="glass-card-interactive rounded-2xl p-5 border border-white/[0.08] flex flex-col gap-3 transition-all hover:bg-white/[0.04]">
               <div className="flex items-start justify-between">
-                <h3 className="font-semibold text-slate-100 line-clamp-2 leading-tight">{playlist.name}</h3>
+                <h3 className="font-semibold text-slate-100 line-clamp-2 leading-tight">{playlist.playlistName}</h3>
               </div>
 
               <div className="flex items-center justify-between mt-auto pt-2">
                 <Badge variant="secondary" className="bg-slate-800 text-slate-300 hover:bg-slate-700 font-mono-numbers">
-                  {playlist.videoCount || 0} videos
+                  0 videos
                 </Badge>
 
                 <Button 

@@ -28,23 +28,23 @@ import {
 
 interface Channel {
   id: string
-  name: string
+  channelName: string
 }
 
 interface Playlist {
   id: string
-  name: string
+  playlistName: string
 }
 
 interface Rule {
   id: string
-  channelId: string
-  playlistId: string
+  watchedChannelId: string
+  targetPlaylistId: string
   filterType: 'all' | 'title_contains' | 'title_any_of'
   filterValue: string | null
   isActive: boolean
-  channel: Channel
-  playlist: Playlist
+  channelName: string
+  playlistName: string
 }
 
 export default function RulesPage() {
@@ -57,8 +57,8 @@ export default function RulesPage() {
   const [isAdding, setIsAdding] = useState(false)
   
   const [formData, setFormData] = useState({
-    channelId: '',
-    playlistId: '',
+    watchedChannelId: '',
+    targetPlaylistId: '',
     filterType: 'all',
     filterValue: ''
   })
@@ -98,7 +98,7 @@ export default function RulesPage() {
 
   const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.channelId || !formData.playlistId) {
+    if (!formData.watchedChannelId || !formData.targetPlaylistId) {
       toast.error('Debes seleccionar un canal y una lista')
       return
     }
@@ -114,8 +114,8 @@ export default function RulesPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          channelId: formData.channelId,
-          playlistId: formData.playlistId,
+          watchedChannelId: formData.watchedChannelId,
+          targetPlaylistId: formData.targetPlaylistId,
           filterType: formData.filterType,
           filterValue: formData.filterType === 'all' ? null : formData.filterValue.trim()
         })
@@ -125,7 +125,7 @@ export default function RulesPage() {
       
       toast.success('Regla creada correctamente')
       setIsDialogOpen(false)
-      setFormData({ channelId: '', playlistId: '', filterType: 'all', filterValue: '' })
+      setFormData({ watchedChannelId: '', targetPlaylistId: '', filterType: 'all', filterValue: '' })
       fetchData()
     } catch (error) {
       toast.error('No se pudo crear la regla')
@@ -136,10 +136,10 @@ export default function RulesPage() {
 
   const handleToggle = async (id: string, currentStatus: boolean) => {
     try {
-      const res = await fetch(`/api/rules/${id}`, {
+      const res = await fetch(`/api/rules`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !currentStatus })
+        body: JSON.stringify({ id, isActive: !currentStatus })
       })
       if (!res.ok) throw new Error('Error al actualizar regla')
       setRules(rules.map(r => r.id === id ? { ...r, isActive: !currentStatus } : r))
@@ -152,7 +152,11 @@ export default function RulesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de que deseas eliminar esta regla?')) return
     try {
-      const res = await fetch(`/api/rules/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/rules`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
       if (!res.ok) throw new Error('Error al eliminar regla')
       setRules(rules.filter(r => r.id !== id))
       toast.success('Regla eliminada')
@@ -195,13 +199,13 @@ export default function RulesPage() {
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
                   <Label className="text-slate-300">Canal de origen</Label>
-                  <Select value={formData.channelId || ""} onValueChange={(val: string | null) => setFormData({...formData, channelId: val ?? ""})}>
+                  <Select value={formData.watchedChannelId || ""} onValueChange={(val: string | null) => setFormData({...formData, watchedChannelId: val ?? ""})}>
                     <SelectTrigger className="bg-black/20 border-white/[0.08] text-slate-100">
                       <SelectValue placeholder="Selecciona un canal" />
                     </SelectTrigger>
                     <SelectContent>
                       {channels.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        <SelectItem key={c.id} value={c.id}>{c.channelName}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -209,13 +213,13 @@ export default function RulesPage() {
                 
                 <div className="space-y-2">
                   <Label className="text-slate-300">Lista de destino</Label>
-                  <Select value={formData.playlistId || ""} onValueChange={(val: string | null) => setFormData({...formData, playlistId: val ?? ""})}>
+                  <Select value={formData.targetPlaylistId || ""} onValueChange={(val: string | null) => setFormData({...formData, targetPlaylistId: val ?? ""})}>
                     <SelectTrigger className="bg-black/20 border-white/[0.08] text-slate-100">
                       <SelectValue placeholder="Selecciona una lista" />
                     </SelectTrigger>
                     <SelectContent>
                       {playlists.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>{p.playlistName}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -252,7 +256,7 @@ export default function RulesPage() {
                 )}
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={isAdding || !formData.channelId || !formData.playlistId} className="bg-amber-500 hover:bg-amber-600 text-white">
+                <Button type="submit" disabled={isAdding || !formData.watchedChannelId || !formData.targetPlaylistId} className="bg-amber-500 hover:bg-amber-600 text-white">
                   {isAdding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Crear Regla
                 </Button>
@@ -290,9 +294,9 @@ export default function RulesPage() {
               
               <div className="flex-1">
                 <div className="flex items-center gap-3 text-slate-100 font-semibold mb-2 flex-wrap">
-                  <span className="truncate max-w-[200px]" title={rule.channel?.name}>{rule.channel?.name || 'Canal desconocido'}</span>
+                  <span className="truncate max-w-[200px]" title={rule.channelName}>{rule.channelName || 'Canal desconocido'}</span>
                   <ArrowRight className="h-4 w-4 text-slate-500 flex-shrink-0" />
-                  <span className="truncate max-w-[200px]" title={rule.playlist?.name}>{rule.playlist?.name || 'Lista desconocida'}</span>
+                  <span className="truncate max-w-[200px]" title={rule.playlistName}>{rule.playlistName || 'Lista desconocida'}</span>
                 </div>
                 
                 <div className="flex items-center gap-2 flex-wrap">

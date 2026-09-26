@@ -20,9 +20,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 interface Channel {
   id: string
-  name: string
   channelId: string
-  thumbnailUrl: string | null
+  channelName: string
+  channelUrl: string | null
+  channelThumbnail: string | null
   isActive: boolean
 }
 
@@ -78,10 +79,10 @@ export default function ChannelsPage() {
 
   const handleToggle = async (id: string, currentStatus: boolean) => {
     try {
-      const res = await fetch(`/api/channels/${id}`, {
+      const res = await fetch(`/api/channels`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !currentStatus })
+        body: JSON.stringify({ id, isActive: !currentStatus })
       })
       if (!res.ok) throw new Error('Error al actualizar canal')
       setChannels(channels.map(c => c.id === id ? { ...c, isActive: !currentStatus } : c))
@@ -94,7 +95,11 @@ export default function ChannelsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de que deseas eliminar este canal?')) return
     try {
-      const res = await fetch(`/api/channels/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/channels`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
       if (!res.ok) throw new Error('Error al eliminar canal')
       setChannels(channels.filter(c => c.id !== id))
       toast.success('Canal eliminado')
@@ -175,16 +180,16 @@ export default function ChannelsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {channels.map((channel) => (
             <div key={channel.id} className="glass-card-interactive rounded-2xl p-5 border border-white/[0.08] flex items-center gap-4 transition-all hover:bg-white/[0.04]">
-              {channel.thumbnailUrl ? (
-                <img src={channel.thumbnailUrl} alt={channel.name} className="w-12 h-12 rounded-full border border-white/10" />
+              {channel.channelThumbnail ? (
+                <img src={channel.channelThumbnail} alt={channel.channelName} className="w-12 h-12 rounded-full border border-white/10" />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
-                  <span className="text-lg font-bold text-slate-400">{channel.name.substring(0, 1).toUpperCase()}</span>
+                  <span className="text-lg font-bold text-slate-400">{channel.channelName.substring(0, 1).toUpperCase()}</span>
                 </div>
               )}
               
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-100 truncate">{channel.name}</h3>
+                <h3 className="font-semibold text-slate-100 truncate">{channel.channelName}</h3>
                 <p className="text-xs text-slate-500 font-mono-numbers truncate">{channel.channelId}</p>
               </div>
 
