@@ -1,0 +1,16 @@
+name: YTAuto Hourly Sync
+
+on:
+  schedule:
+    # Ejecuta en el minuto 0 de cada hora
+    - cron: '0 * * * *'
+  workflow_dispatch: # Permite ejecución manual desde GitHub
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint de sincronización
+        run: |
+          curl -X GET "${{ secrets.PROD_URL }}/api/cron/sync-youtube" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
