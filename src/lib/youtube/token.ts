@@ -13,7 +13,7 @@ export async function getValidYouTubeAccessToken(
     where: and(eq(accounts.userId, userId), eq(accounts.provider, "google")),
   });
 
-  if (!account || !account.refreshToken) {
+  if (!account || !account.refresh_token) {
     throw new Error(`No Google account or refresh token found for user: ${userId}`);
   }
 
@@ -22,11 +22,11 @@ export async function getValidYouTubeAccessToken(
 
   // Return existing token if still valid
   if (
-    account.expiresAt &&
-    account.expiresAt > nowInSeconds + bufferSeconds &&
-    account.accessToken
+    account.expires_at &&
+    account.expires_at > nowInSeconds + bufferSeconds &&
+    account.access_token
   ) {
-    return account.accessToken;
+    return account.access_token;
   }
 
   // Refresh the token
@@ -37,7 +37,7 @@ export async function getValidYouTubeAccessToken(
       client_id: process.env.AUTH_GOOGLE_ID!,
       client_secret: process.env.AUTH_GOOGLE_SECRET!,
       grant_type: "refresh_token",
-      refresh_token: account.refreshToken,
+      refresh_token: account.refresh_token,
     }),
   });
 
@@ -54,10 +54,10 @@ export async function getValidYouTubeAccessToken(
   await db
     .update(accounts)
     .set({
-      accessToken: newAccessToken,
-      expiresAt: newExpiresAt,
+      access_token: newAccessToken,
+      expires_at: newExpiresAt,
       // Google may issue a new refresh token
-      ...(data.refresh_token ? { refreshToken: data.refresh_token } : {}),
+      ...(data.refresh_token ? { refresh_token: data.refresh_token } : {}),
     })
     .where(
       and(
