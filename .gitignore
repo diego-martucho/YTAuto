@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Google OAuth client secret JSON (downloaded from GCloud console)
+client_secret_*.json

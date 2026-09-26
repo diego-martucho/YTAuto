@@ -54,12 +54,12 @@ export function AppSidebar({ user }: { user: any }) {
             const isActive = pathname === item.href;
             return (
               <SidebarMenuItem key={item.name}>
-                <SidebarMenuButton asChild isActive={isActive} tooltip={item.name}>
-                  <Link href={item.href}>
+                <Link href={item.href}>
+                  <SidebarMenuButton isActive={isActive} tooltip={item.name}>
                     <item.icon className="h-4 w-4" />
                     <span>{item.name}</span>
-                  </Link>
-                </SidebarMenuButton>
+                  </SidebarMenuButton>
+                </Link>
               </SidebarMenuItem>
             );
           })}
