@@ -27,36 +27,48 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { signOut } from "next-auth/react";
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Channels", href: "/dashboard/channels", icon: Radio },
-  { name: "Playlists", href: "/dashboard/playlists", icon: ListMusic },
-  { name: "Rules", href: "/dashboard/rules", icon: GitBranch },
-  { name: "Search", href: "/dashboard/search", icon: Search },
-  { name: "Logs", href: "/dashboard/logs", icon: ScrollText },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+  { name: "Panel de Control", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Canales", href: "/dashboard/channels", icon: Radio },
+  { name: "Listas de Reproducción", href: "/dashboard/playlists", icon: ListMusic },
+  { name: "Reglas", href: "/dashboard/rules", icon: GitBranch },
+  { name: "Búsqueda", href: "/dashboard/search", icon: Search },
+  { name: "Registros", href: "/dashboard/logs", icon: ScrollText },
+  { name: "Configuración", href: "/dashboard/settings", icon: Settings },
 ];
 
 export function AppSidebar({ user }: { user: any }) {
   const pathname = usePathname();
 
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b border-border/50 py-4">
-        <Link href="/dashboard" className="flex items-center gap-2 px-4 text-primary">
-          <Play className="h-6 w-6 fill-current" />
-          <span className="text-xl font-bold tracking-tight">YTAuto</span>
+    <Sidebar className="border-r border-slate-800/80 bg-[#090d16]">
+      <SidebarHeader className="border-b border-slate-800/80 py-4 px-4">
+        <Link href="/dashboard" className="flex items-center gap-2.5 group">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-600/30 ring-1 ring-white/20 group-hover:scale-105 transition-transform">
+            <Play className="h-4 w-4 text-white fill-white ml-0.5" />
+          </div>
+          <span className="text-xl font-display font-black tracking-tight text-indigo-400 group-hover:text-indigo-300 transition-colors">
+            YTAuto
+          </span>
         </Link>
       </SidebarHeader>
-      
-      <SidebarContent className="py-4">
-        <SidebarMenu>
+
+      <SidebarContent className="py-4 px-2">
+        <SidebarMenu className="gap-1">
           {navigation.map((item) => {
             const isActive = pathname === item.href;
             return (
               <SidebarMenuItem key={item.name}>
-                <Link href={item.href}>
-                  <SidebarMenuButton isActive={isActive} tooltip={item.name}>
-                    <item.icon className="h-4 w-4" />
+                <Link href={item.href} className="w-full">
+                  <SidebarMenuButton
+                    isActive={isActive}
+                    tooltip={item.name}
+                    className={`rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                      isActive
+                        ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 shadow-sm shadow-indigo-600/20 font-semibold"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    }`}
+                  >
+                    <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-indigo-400" : "text-slate-400"}`} />
                     <span>{item.name}</span>
                   </SidebarMenuButton>
                 </Link>
@@ -66,23 +78,25 @@ export function AppSidebar({ user }: { user: any }) {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-border/50 p-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9 border border-border/50">
+      <SidebarFooter className="border-t border-slate-800/80 p-3 bg-slate-900/30">
+        <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-900/70 border border-slate-800/80">
+          <Avatar className="h-9 w-9 border border-slate-700/60 shrink-0">
             <AvatarImage src={user?.image || ""} alt={user?.name || ""} />
-            <AvatarFallback>{user?.name?.[0] || "U"}</AvatarFallback>
+            <AvatarFallback className="bg-indigo-950 text-indigo-300 font-bold">
+              {user?.name?.[0] || "U"}
+            </AvatarFallback>
           </Avatar>
           <div className="flex flex-col flex-1 overflow-hidden">
-            <span className="text-sm font-medium truncate">{user?.name}</span>
-            <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
+            <span className="text-sm font-semibold text-slate-200 truncate">{user?.name || "Usuario"}</span>
+            <span className="text-xs text-slate-400 truncate">{user?.email || ""}</span>
           </div>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="mt-4 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
         >
           <LogOut className="h-4 w-4" />
-          Sign Out
+          <span>Cerrar sesión</span>
         </button>
       </SidebarFooter>
     </Sidebar>
