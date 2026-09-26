@@ -62,6 +62,49 @@ export async function addVideoToPlaylist(
 }
 
 /**
+ * Retrieve video IDs currently in a YouTube playlist (to prevent duplicates).
+ * Cost: 1 quota unit per page.
+ */
+export async function getPlaylistVideoIds(
+  accessToken: string,
+  playlistId: string
+): Promise<Set<string>> {
+  const videoIds = new Set<string>();
+  let pageToken: string | undefined;
+
+  try {
+    do {
+      const params = new URLSearchParams({
+        part: "contentDetails",
+        playlistId,
+        maxResults: "50",
+        ...(pageToken ? { pageToken } : {}),
+      });
+
+      const res = await fetch(`${YOUTUBE_API_BASE}/playlistItems?${params}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!res.ok) {
+        break;
+      }
+
+      const data = await res.json();
+      for (const item of data.items || []) {
+        if (item.contentDetails?.videoId) {
+          videoIds.add(item.contentDetails.videoId);
+        }
+      }
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+  } catch (err) {
+    console.error(`Error fetching video IDs for playlist ${playlistId}:`, err);
+  }
+
+  return videoIds;
+}
+
+/**
  * List the authenticated user's playlists.
  * Cost: 1 quota unit per page.
  */

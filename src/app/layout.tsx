@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col bg-[#090d16] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white font-sans">
         <TooltipProvider>
           {children}
-          <Toaster richColors position="bottom-right" />
+          <Toaster richColors position="top-right" />
         </TooltipProvider>
       </body>
     </html>

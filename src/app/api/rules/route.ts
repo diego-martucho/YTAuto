@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
         targetPlaylistId: channelRules.targetPlaylistId,
         filterType: channelRules.filterType,
         filterValue: channelRules.filterValue,
+        excludeValue: channelRules.excludeValue,
         isActive: channelRules.isActive,
         createdAt: channelRules.createdAt,
         updatedAt: channelRules.updatedAt,
@@ -46,24 +47,24 @@ export async function POST(req: NextRequest) {
     const userId = session.user.id;
 
     const body = await req.json();
-    const { watchedChannelId, targetPlaylistId, filterType, filterValue } = body;
+    const { watchedChannelId, targetPlaylistId, filterType, filterValue, excludeValue } = body;
 
     if (!watchedChannelId || !targetPlaylistId) {
-      return NextResponse.json({ error: "Channel and Playlist IDs are required" }, { status: 400 });
+      return NextResponse.json({ error: "Canal y lista son requeridos" }, { status: 400 });
     }
 
     const channel = await db.query.watchedChannels.findFirst({
       where: and(eq(watchedChannels.id, watchedChannelId), eq(watchedChannels.userId, userId))
     });
     if (!channel) {
-      return NextResponse.json({ error: "Channel not found or unauthorized" }, { status: 403 });
+      return NextResponse.json({ error: "Canal no encontrado o no autorizado" }, { status: 403 });
     }
 
     const playlist = await db.query.targetPlaylists.findFirst({
       where: and(eq(targetPlaylists.id, targetPlaylistId), eq(targetPlaylists.userId, userId))
     });
     if (!playlist) {
-      return NextResponse.json({ error: "Playlist not found or unauthorized" }, { status: 403 });
+      return NextResponse.json({ error: "Lista no encontrada o no autorizada" }, { status: 403 });
     }
 
     const [newRule] = await db
@@ -72,7 +73,8 @@ export async function POST(req: NextRequest) {
         watchedChannelId,
         targetPlaylistId,
         filterType: filterType || "all",
-        filterValue: filterValue || null,
+        filterValue: filterValue ? filterValue.trim() : null,
+        excludeValue: excludeValue ? excludeValue.trim() : null,
       })
       .returning();
 
@@ -92,10 +94,10 @@ export async function PATCH(req: NextRequest) {
     const userId = session.user.id;
 
     const body = await req.json();
-    const { id, isActive, filterType, filterValue } = body;
+    const { id, watchedChannelId, targetPlaylistId, isActive, filterType, filterValue, excludeValue } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "Rule ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "ID de regla requerido" }, { status: 400 });
     }
 
     const rule = await db
@@ -106,15 +108,33 @@ export async function PATCH(req: NextRequest) {
       .limit(1);
 
     if (rule.length === 0) {
-      return NextResponse.json({ error: "Rule not found or unauthorized" }, { status: 403 });
+      return NextResponse.json({ error: "Regla no encontrada o no autorizada" }, { status: 403 });
     }
 
-    const updates: any = {
+    const updates: Partial<typeof channelRules.$inferInsert> = {
       updatedAt: new Date(),
     };
+
+    if (watchedChannelId) {
+      const channel = await db.query.watchedChannels.findFirst({
+        where: and(eq(watchedChannels.id, watchedChannelId), eq(watchedChannels.userId, userId))
+      });
+      if (!channel) return NextResponse.json({ error: "Canal no válido" }, { status: 400 });
+      updates.watchedChannelId = watchedChannelId;
+    }
+
+    if (targetPlaylistId) {
+      const playlist = await db.query.targetPlaylists.findFirst({
+        where: and(eq(targetPlaylists.id, targetPlaylistId), eq(targetPlaylists.userId, userId))
+      });
+      if (!playlist) return NextResponse.json({ error: "Lista no válida" }, { status: 400 });
+      updates.targetPlaylistId = targetPlaylistId;
+    }
+
     if (isActive !== undefined) updates.isActive = isActive;
     if (filterType !== undefined) updates.filterType = filterType;
-    if (filterValue !== undefined) updates.filterValue = filterValue;
+    if (filterValue !== undefined) updates.filterValue = filterValue ? filterValue.trim() : null;
+    if (excludeValue !== undefined) updates.excludeValue = excludeValue ? excludeValue.trim() : null;
 
     const [updatedRule] = await db
       .update(channelRules)

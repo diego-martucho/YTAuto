@@ -8,7 +8,6 @@ import {
   Radio,
   ListMusic,
   GitBranch,
-  Search,
   ScrollText,
   Settings,
   Play,
@@ -33,7 +32,6 @@ const navigation = [
   { name: "Canales", href: "/dashboard/channels", icon: Radio },
   { name: "Listas de Reproducción", href: "/dashboard/playlists", icon: ListMusic },
   { name: "Reglas", href: "/dashboard/rules", icon: GitBranch },
-  { name: "Búsqueda", href: "/dashboard/search", icon: Search },
   { name: "Registros", href: "/dashboard/logs", icon: ScrollText },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },
 ];

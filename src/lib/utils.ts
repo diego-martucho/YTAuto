@@ -46,3 +46,26 @@ export function matchesTitleFilter(
 
   return true;
 }
+
+/**
+ * Evaluates whether a video title should be excluded based on comma-separated exclusion keywords.
+ * Returns true if the title contains ANY of the exclusion keywords (meaning it SHOULD be excluded).
+ * Ignores case and accents.
+ */
+export function isTitleExcluded(
+  videoTitle: string,
+  excludeValue?: string | null
+): boolean {
+  if (!excludeValue || !excludeValue.trim()) {
+    return false;
+  }
+
+  const normTitle = normalizeText(videoTitle);
+  const excludeKeywords = excludeValue
+    .split(",")
+    .map((k) => normalizeText(k))
+    .filter((k) => k.length > 0);
+
+  if (excludeKeywords.length === 0) return false;
+  return excludeKeywords.some((keyword) => normTitle.includes(keyword));
+}
