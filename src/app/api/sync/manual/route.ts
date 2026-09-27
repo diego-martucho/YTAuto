@@ -31,9 +31,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Calculamos el inicio del día actual (00:00:00) según el huso horario local
+    // Usamos una ventana móvil de 48 horas (stateless).
+    // Al ser idempotente, asegura que no se pierdan videos de ayer ni de hoy,
+    // y evita duplicados verificando la playlist.
     const now = new Date();
-    const windowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const windowStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
     const windowEnd = now;
 
     // Obtener canales monitorizados activos del usuario
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
       let videoDurations = new Map<string, number>();
       try {
         const allRecentVideos = await getLatestChannelVideos(channel.channelId);
-        // Filtrar videos publicados hoy desde las 00:00hs
+        // Filtrar videos publicados en las últimas 48hs
         channelVideos = allRecentVideos.filter((v) => v.publishedAt >= windowStart);
 
         if (channelVideos.length > 0) {

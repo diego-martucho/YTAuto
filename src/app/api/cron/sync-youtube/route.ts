@@ -80,8 +80,10 @@ export async function GET(req: Request) {
       for (const channel of userChannels) {
         channelsChecked++;
         
-        // Para automático, tomamos videos de las últimas 24 horas o desde la última revisión
-        const windowStart = channel.lastCheckedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
+        // Usamos una ventana móvil de 48 horas (stateless).
+        // Al ser idempotente (verifica la playlist primero), no importa si se solapan ejecuciones,
+        // garantizando que no se pierda NINGÚN video sin importar a qué hora se ejecute el cron.
+        const windowStart = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
         const rules = await db
           .select({
@@ -198,7 +200,7 @@ export async function GET(req: Request) {
           videosFiltered,
           videosErrored,
           quotaUsed,
-          windowStart: new Date(startedAt.getTime() - 24 * 60 * 60 * 1000), // Approx
+          windowStart: new Date(startedAt.getTime() - 48 * 60 * 60 * 1000), // Fixed 48h window
           windowEnd: startedAt,
           startedAt,
           finishedAt: new Date(),
