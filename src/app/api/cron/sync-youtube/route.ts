@@ -77,7 +77,11 @@ export async function GET(req: Request) {
 
       const playlistVideoIdsCache = new Map<string, Set<string>>();
 
-      for (const channel of userChannels) {
+      const chunkSize = 10;
+      for (let i = 0; i < userChannels.length; i += chunkSize) {
+        const chunk = userChannels.slice(i, i + chunkSize);
+        
+        await Promise.all(chunk.map(async (channel) => {
         channelsChecked++;
         
         // Usamos una ventana móvil de 48 horas (stateless).
@@ -105,7 +109,7 @@ export async function GET(req: Request) {
             )
           );
 
-        if (rules.length === 0) continue;
+        if (rules.length === 0) return;
 
         let channelVideos;
         let videoDurations = new Map<string, number>();
@@ -121,7 +125,7 @@ export async function GET(req: Request) {
           }
         } catch (feedErr) {
           console.error(`Cron error canal ${channel.channelName}:`, feedErr);
-          continue;
+          return;
         }
 
         videosFound += channelVideos.length;
@@ -185,6 +189,7 @@ export async function GET(req: Request) {
           .update(watchedChannels)
           .set({ lastCheckedAt: new Date() })
           .where(eq(watchedChannels.id, channel.id));
+        }));
       }
 
       totalAdded += videosAdded;

@@ -66,7 +66,10 @@ export async function POST(req: NextRequest) {
     // Cache de IDs de videos ya presentes en playlists de YouTube
     const playlistVideoIdsCache = new Map<string, Set<string>>();
 
-    for (const channel of userChannels) {
+    const chunkSize = 10;
+    for (let i = 0; i < userChannels.length; i += chunkSize) {
+      const chunk = userChannels.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(async (channel) => {
       channelsChecked++;
 
       // Obtener reglas activas de este canal
@@ -91,7 +94,7 @@ export async function POST(req: NextRequest) {
           )
         );
 
-      if (rules.length === 0) continue;
+      if (rules.length === 0) return;
 
       let channelVideos;
       let videoDurations = new Map<string, number>();
@@ -107,7 +110,7 @@ export async function POST(req: NextRequest) {
         }
       } catch (feedErr) {
         console.error(`Error al obtener RSS de canal ${channel.channelName}:`, feedErr);
-        continue;
+        return;
       }
 
       videosFound += channelVideos.length;
@@ -244,6 +247,7 @@ export async function POST(req: NextRequest) {
         .update(watchedChannels)
         .set({ lastCheckedAt: new Date() })
         .where(eq(watchedChannels.id, channel.id));
+      }));
     }
 
     const finishedAt = new Date();
