@@ -15,16 +15,7 @@ import {
 import { toast } from 'sonner'
 import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface SettingsData {
@@ -35,16 +26,6 @@ interface SettingsData {
   notificationEmail?: string | null
   tokenStatus?: { valid: boolean; reason?: string }
 }
-
-const timezones = [
-  { value: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires (GMT-3)' },
-  { value: 'America/Santiago', label: 'Santiago de Chile (GMT-3/4)' },
-  { value: 'America/Bogota', label: 'Bogotá / Lima (GMT-5)' },
-  { value: 'America/Mexico_City', label: 'Ciudad de México (GMT-6)' },
-  { value: 'America/Madrid', label: 'Madrid / España (GMT+1/2)' },
-  { value: 'America/New_York', label: 'Nueva York (GMT-4/5)' },
-  { value: 'UTC', label: 'UTC' },
-]
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsData>({
@@ -146,68 +127,33 @@ export default function SettingsPage() {
             </div>
             <div>
               <h2 className="font-display font-bold text-slate-100 text-lg">
-                Horario de Ejecución de la App
+                Sincronización Automática
               </h2>
               <p className="text-xs sm:text-sm text-slate-400">
-                Define la hora del día en la que YTAuto recopila los videos de tus canales y aplica las reglas.
+                YTAuto revisa automáticamente tus canales y aplica las reglas una vez al día.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-1">
-            {/* Hora de sincronización */}
-            <div className="space-y-2">
-              <Label htmlFor="syncTime" className="text-slate-300 text-sm font-medium flex items-center justify-between">
-                <span>Hora de ejecución diaria</span>
-                <span className="text-xs text-indigo-400 font-mono-numbers">{settings.syncTime} hs</span>
-              </Label>
-              <div className="relative">
-                <Input
-                  id="syncTime"
-                  type="time"
-                  value={settings.syncTime}
-                  onChange={(e) => setSettings({ ...settings, syncTime: e.target.value })}
-                  className="h-10 bg-black/30 border-white/[0.08] text-slate-100 focus-visible:ring-indigo-500/40 text-sm font-mono-numbers px-3"
-                />
+          <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl font-display font-black text-indigo-300 font-mono-numbers">
+                06:00
               </div>
-              <p className="text-xs text-slate-500">
-                A esta hora se ejecutará la revisión automática de los canales monitorizados.
-              </p>
+              <div>
+                <p className="font-semibold text-sm text-slate-200">Hora de Argentina (UTC-3)</p>
+                <p className="text-xs text-slate-400">Todos los días a las 09:00 UTC</p>
+              </div>
             </div>
-
-            {/* Zona horaria */}
-            <div className="space-y-2">
-              <Label className="text-slate-300 text-sm font-medium flex items-center justify-between">
-                <span>Zona horaria</span>
-                <Globe className="h-3.5 w-3.5 text-slate-500" />
-              </Label>
-              <Select
-                value={settings.timezone}
-                onValueChange={(val) => val && setSettings({ ...settings, timezone: val })}
-              >
-                <SelectTrigger className="w-full h-10 bg-black/30 border-white/[0.08] text-slate-100 text-xs">
-                  <SelectValue placeholder="Selecciona zona horaria" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#0f1523] border-white/[0.08] text-slate-200">
-                  {timezones.map((tz) => (
-                    <SelectItem key={tz.value} value={tz.value}>
-                      {tz.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-500">
-                Determina la referencia horaria para el reloj de ejecución diario.
-              </p>
-            </div>
+            <Globe className="h-5 w-5 text-slate-500" />
           </div>
 
-          <div className="mt-2 pt-4 border-t border-slate-800/40 flex items-center justify-between">
+          <div className="mt-1 pt-4 border-t border-slate-800/40 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
               <div>
                 <p className="font-semibold text-xs text-slate-200">Sincronización diaria activa</p>
-                <p className="text-[11px] text-slate-400">Escaneo programado cada 24 horas.</p>
+                <p className="text-[11px] text-slate-400">Escaneo programado cada 24 horas. Ventana de detección: últimas 48hs.</p>
               </div>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
