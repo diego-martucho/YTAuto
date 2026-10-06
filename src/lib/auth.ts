@@ -8,6 +8,7 @@ import {
   sessions,
   verificationTokens,
 } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -40,6 +41,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/login",
   },
   callbacks: {
+    async signIn({ account }) {
+      if (account) {
+        try {
+          await db
+            .update(accounts)
+            .set({
+              access_token: account.access_token,
+              expires_at: account.expires_at,
+              refresh_token: account.refresh_token,
+              scope: account.scope,
+              id_token: account.id_token,
+              token_type: account.token_type,
+            })
+            .where(
+              and(
+                eq(accounts.provider, account.provider),
+                eq(accounts.providerAccountId, account.providerAccountId)
+              )
+            );
+        } catch (error) {
+          console.error("Failed to update tokens on sign in:", error);
+        }
+      }
+      return true;
+    },
     session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
