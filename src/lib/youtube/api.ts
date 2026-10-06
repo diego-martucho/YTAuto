@@ -72,34 +72,39 @@ export async function getPlaylistVideoIds(
   const videoIds = new Set<string>();
   let pageToken: string | undefined;
 
-  try {
-    do {
-      const params = new URLSearchParams({
-        part: "contentDetails",
-        playlistId,
-        maxResults: "50",
-        ...(pageToken ? { pageToken } : {}),
-      });
+  do {
+    const params = new URLSearchParams({
+      part: "contentDetails",
+      playlistId,
+      maxResults: "50",
+      ...(pageToken ? { pageToken } : {}),
+    });
 
-      const res = await fetch(`${YOUTUBE_API_BASE}/playlistItems?${params}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+    const res = await fetch(`${YOUTUBE_API_BASE}/playlistItems?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
-      if (!res.ok) {
-        break;
+    if (!res.ok) {
+      // Propagate auth/quota errors — these indicate a systemic problem
+      if (res.status === 401 || res.status === 403) {
+        const errorText = await res.text();
+        throw new Error(
+          `YouTube API error ${res.status} fetching playlist ${playlistId}: ${errorText}`
+        );
       }
+      // For other errors (404, 5xx), log and return what we have so far
+      console.error(`Error fetching playlist ${playlistId}: HTTP ${res.status}`);
+      break;
+    }
 
-      const data = await res.json();
-      for (const item of data.items || []) {
-        if (item.contentDetails?.videoId) {
-          videoIds.add(item.contentDetails.videoId);
-        }
+    const data = await res.json();
+    for (const item of data.items || []) {
+      if (item.contentDetails?.videoId) {
+        videoIds.add(item.contentDetails.videoId);
       }
-      pageToken = data.nextPageToken;
-    } while (pageToken);
-  } catch (err) {
-    console.error(`Error fetching video IDs for playlist ${playlistId}:`, err);
-  }
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
 
   return videoIds;
 }
@@ -350,7 +355,15 @@ export async function getVideoDurations(
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      if (!res.ok) continue;
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          const errorText = await res.text();
+          throw new Error(
+            `YouTube API error ${res.status} fetching video durations: ${errorText}`
+          );
+        }
+        continue;
+      }
 
       const data = await res.json();
       for (const item of data.items || []) {

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { userSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { checkTokenStatus } from "@/lib/youtube/token";
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,7 +30,10 @@ export async function GET(req: NextRequest) {
       settings = newSettings;
     }
 
-    return NextResponse.json(settings);
+    // Check Google OAuth token status
+    const tokenStatus = await checkTokenStatus(session.user.id);
+
+    return NextResponse.json({ ...settings, tokenStatus });
   } catch (error) {
     console.error("Error fetching settings:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

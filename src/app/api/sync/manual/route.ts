@@ -9,7 +9,7 @@ import {
   syncLogs,
 } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { getValidYouTubeAccessToken } from "@/lib/youtube/token";
+import { getValidYouTubeAccessToken, TokenRevokedError } from "@/lib/youtube/token";
 import { getLatestChannelVideos } from "@/lib/youtube/rss";
 import { addVideoToPlaylist, getPlaylistVideoIds, getVideoDurations } from "@/lib/youtube/api";
 import { matchesTitleFilter, isTitleExcluded } from "@/lib/utils";
@@ -23,8 +23,16 @@ export async function POST(req: NextRequest) {
     }
     const userId = session.user.id;
 
-    const accessToken = await getValidYouTubeAccessToken(userId);
-    if (!accessToken) {
+    // Validate token upfront — fail fast with a clear message if revoked
+    try {
+      await getValidYouTubeAccessToken(userId);
+    } catch (error) {
+      if (error instanceof TokenRevokedError) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        );
+      }
       return NextResponse.json(
         { error: "No se pudo obtener el token de acceso a YouTube. Inicia sesión nuevamente." },
         { status: 403 }
@@ -69,6 +77,8 @@ export async function POST(req: NextRequest) {
     const chunkSize = 10;
     for (let i = 0; i < userChannels.length; i += chunkSize) {
       const chunk = userChannels.slice(i, i + chunkSize);
+      // Re-fetch token per chunk — getValidYouTubeAccessToken returns cached token if still valid
+      const accessToken = await getValidYouTubeAccessToken(userId);
       await Promise.all(chunk.map(async (channel) => {
       channelsChecked++;
 
@@ -280,6 +290,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     console.error("Error en sincronización manual:", error);
+    if (error instanceof TokenRevokedError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
     const msg = error instanceof Error ? error.message : "Error interno del servidor";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

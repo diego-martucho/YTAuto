@@ -10,7 +10,7 @@ import {
   syncLogs,
 } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { getValidYouTubeAccessToken } from "@/lib/youtube/token";
+import { getValidYouTubeAccessToken, TokenRevokedError } from "@/lib/youtube/token";
 import { getLatestChannelVideos } from "@/lib/youtube/rss";
 import { addVideoToPlaylist, getPlaylistVideoIds, getVideoDurations } from "@/lib/youtube/api";
 import { matchesTitleFilter, isTitleExcluded } from "@/lib/utils";
@@ -58,8 +58,17 @@ export async function GET(req: Request) {
         }
       }
 
-      const accessToken = await getValidYouTubeAccessToken(user.id);
-      if (!accessToken) continue;
+      let accessToken: string;
+      try {
+        accessToken = await getValidYouTubeAccessToken(user.id);
+      } catch (tokenErr) {
+        if (tokenErr instanceof TokenRevokedError) {
+          console.warn(`Cron: Token revocado para usuario ${user.id}. Saltando.`);
+          continue;
+        }
+        console.error(`Cron: Error obteniendo token para usuario ${user.id}:`, tokenErr);
+        continue;
+      }
 
       const userChannels = await db
         .select()
@@ -80,6 +89,8 @@ export async function GET(req: Request) {
       const chunkSize = 10;
       for (let i = 0; i < userChannels.length; i += chunkSize) {
         const chunk = userChannels.slice(i, i + chunkSize);
+        // Re-fetch token per chunk — returns cached token if still valid
+        accessToken = await getValidYouTubeAccessToken(user.id);
         
         await Promise.all(chunk.map(async (channel) => {
         channelsChecked++;

@@ -9,8 +9,11 @@ import {
   Loader2,
   Save,
   Globe,
+  AlertTriangle,
+  LogOut,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +33,7 @@ interface SettingsData {
   syncTime: string
   notificationsEnabled: boolean
   notificationEmail?: string | null
+  tokenStatus?: { valid: boolean; reason?: string }
 }
 
 const timezones = [
@@ -63,6 +67,7 @@ export default function SettingsPage() {
         syncTime: data.syncTime || '00:00',
         notificationsEnabled: data.notificationsEnabled ?? true,
         notificationEmail: data.notificationEmail || '',
+        tokenStatus: data.tokenStatus || { valid: false, reason: 'unknown_error' },
       })
     } catch {
       toast.error('Error al cargar las preferencias')
@@ -227,18 +232,45 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between py-2">
-            <div className="flex items-center gap-2.5">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <div>
-                <p className="font-semibold text-sm text-slate-200">Cuenta de Google vinculada</p>
-                <p className="text-xs text-slate-400">Permisos para modificar listas de reproducción concedidos.</p>
+          {settings.tokenStatus?.valid ? (
+            <div className="flex items-center justify-between py-2">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                <div>
+                  <p className="font-semibold text-sm text-slate-200">Cuenta de Google vinculada</p>
+                  <p className="text-xs text-slate-400">Permisos para modificar listas de reproducción concedidos.</p>
+                </div>
               </div>
+              <span className="text-xs font-medium text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                Conectado
+              </span>
             </div>
-            <span className="text-xs font-medium text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-              Conectado
-            </span>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-3 py-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm text-slate-200">Sesión de Google expirada</p>
+                    <p className="text-xs text-slate-400">
+                      Tu token de acceso fue revocado o expiró. Cerrá sesión y volvé a iniciar sesión para reconectar.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 shrink-0">
+                  Desconectado
+                </span>
+              </div>
+              <Button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                variant="outline"
+                className="self-start border-amber-500/30 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 cursor-pointer"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Cerrar sesión y reconectar
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Notificaciones */}
