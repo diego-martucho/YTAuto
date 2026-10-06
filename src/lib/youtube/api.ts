@@ -36,28 +36,44 @@ interface YouTubeSearchResult {
 export async function addVideoToPlaylist(
   accessToken: string,
   playlistId: string,
-  videoId: string
+  videoId: string,
+  retries = 3
 ): Promise<void> {
-  const res = await fetch(`${YOUTUBE_API_BASE}/playlistItems?part=snippet`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      snippet: {
-        playlistId,
-        resourceId: {
-          kind: "youtube#video",
-          videoId,
-        },
+  const url = `${YOUTUBE_API_BASE}/playlistItems?part=snippet`;
+  const body = JSON.stringify({
+    snippet: {
+      playlistId,
+      resourceId: {
+        kind: "youtube#video",
+        videoId,
       },
-    }),
+    },
   });
 
-  if (!res.ok) {
-    const error = await res.text();
-    throw new Error(`Failed to add video ${videoId} to playlist ${playlistId}: ${error}`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+
+    if (res.ok) return;
+
+    const errorText = await res.text();
+    
+    // Retry on 409 (Aborted/Conflict), 429 (Rate Limit), or 5xx (Server errors)
+    if ((res.status === 409 || res.status === 429 || res.status >= 500) && attempt < retries) {
+      // Exponential backoff: 1s, 2s, 4s + random jitter
+      const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+      console.warn(`YouTube API error ${res.status} when adding video ${videoId}. Retrying in ${Math.round(delay)}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      continue;
+    }
+
+    throw new Error(`Failed to add video ${videoId} to playlist ${playlistId}: ${errorText}`);
   }
 }
 
