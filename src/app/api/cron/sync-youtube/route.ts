@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import {
   users,
-  userSettings,
   watchedChannels,
   channelRules,
   targetPlaylists,
@@ -32,31 +31,8 @@ export async function GET(req: Request) {
     let totalAdded = 0;
 
     for (const user of allUsers) {
-      // Traer settings para verificar la hora
-      const settingsResult = await db.select().from(userSettings).where(eq(userSettings.userId, user.id)).limit(1);
-      const settings = settingsResult[0];
-      
-      if (settings) {
-        // Lógica de hora: Obtener hora actual en la timezone del usuario
-        const formatter = new Intl.DateTimeFormat('en-US', {
-          timeZone: settings.timezone || 'America/Argentina/Buenos_Aires',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        });
-        
-        const currentTimeParts = formatter.formatToParts(new Date());
-        const hour = currentTimeParts.find(p => p.type === 'hour')?.value || '00';
-        
-        // syncTime es "HH:MM". Comparamos si coincide la hora
-        const [syncHour] = (settings.syncTime || '00:00').split(':');
-        
-        // Si no es la hora de sincronización del usuario, lo saltamos
-        // Para Vercel Cron esto corre cada hora, así que verificamos que hour == syncHour
-        if (hour !== syncHour) {
-          continue; 
-        }
-      }
+      // On Vercel Hobby, cron runs once daily (~00:00 UTC).
+      // Process all users every execution to ensure no one is skipped.
 
       let accessToken: string;
       try {
