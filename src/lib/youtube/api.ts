@@ -173,6 +173,52 @@ export async function getUserPlaylists(
 }
 
 /**
+ * Create a new playlist in the authenticated user's YouTube account.
+ * Cost: 50 quota units.
+ * Needed because YouTube Data API v3 blocks programmatic access to the system "Watch Later" (WL) playlist.
+ */
+export async function createYouTubePlaylist(
+  accessToken: string,
+  title: string,
+  description: string = "Lista gestionada por YTAuto",
+  privacyStatus: "private" | "unlisted" | "public" = "private"
+): Promise<YouTubePlaylist> {
+  const res = await fetch(`${YOUTUBE_API_BASE}/playlists?part=snippet,status`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      snippet: {
+        title: title.trim(),
+        description,
+      },
+      status: {
+        privacyStatus,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to create playlist: ${await res.text()}`);
+  }
+
+  const item = await res.json();
+  return {
+    id: item.id,
+    title: item.snippet?.title || title.trim(),
+    description: item.snippet?.description || description,
+    thumbnailUrl:
+      item.snippet?.thumbnails?.medium?.url ||
+      item.snippet?.thumbnails?.default?.url ||
+      "",
+    itemCount: 0,
+  };
+}
+
+
+/**
  * Search YouTube for videos.
  * Cost: 100 quota units per call (capped at 100 calls/day).
  * Use only for manual search, never in the cron job.

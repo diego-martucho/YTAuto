@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import {
   users,
+  userSettings,
   watchedChannels,
   channelRules,
   targetPlaylists,
   processedVideos,
   syncLogs,
 } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, gte, desc } from "drizzle-orm";
 import { getValidYouTubeAccessToken, TokenRevokedError } from "@/lib/youtube/token";
 import { getLatestChannelVideos } from "@/lib/youtube/rss";
 import { addVideoToPlaylist, getPlaylistVideoIds, getVideoDurations } from "@/lib/youtube/api";
@@ -21,18 +22,64 @@ export async function GET(req: Request) {
   
   try {
     // Verificar si es una petición legítima de cron
-    const authHeader = req.headers.get('authorization');
+    const authHeader = req.headers.get("authorization");
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      // return new Response('Unauthorized', { status: 401 });
-      // Para facilitar pruebas manuales lo dejo pasar si no hay CRON_SECRET, pero en prod es ideal
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const { searchParams } = new URL(req.url);
+    const force = searchParams.get("force") === "true";
 
     const allUsers = await db.select().from(users);
     let totalAdded = 0;
+    let skippedAlreadySyncedToday = 0;
 
     for (const user of allUsers) {
-      // On Vercel Hobby, cron runs once daily (~00:00 UTC).
-      // Process all users every execution to ensure no one is skipped.
+      // Guardia de idempotencia diaria: evita ejecuciones automáticas múltiples en el mismo día
+      if (!force) {
+        const [settingsResult] = await db
+          .select({ timezone: userSettings.timezone })
+          .from(userSettings)
+          .where(eq(userSettings.userId, user.id))
+          .limit(1);
+
+        const tz = settingsResult?.timezone || "America/Argentina/Buenos_Aires";
+        const hourFormatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: tz,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hourCycle: "h23",
+        });
+        const hParts = hourFormatter.formatToParts(startedAt);
+        const currentHour = parseInt(hParts.find((p) => p.type === "hour")?.value || "0", 10);
+        const currentMin = parseInt(hParts.find((p) => p.type === "minute")?.value || "0", 10);
+        const currentSec = parseInt(hParts.find((p) => p.type === "second")?.value || "0", 10);
+
+        const todayStart = new Date(
+          startedAt.getTime() - (currentHour * 3600 + currentMin * 60 + currentSec) * 1000
+        );
+
+        const existingAutoToday = await db
+          .select({ id: syncLogs.id })
+          .from(syncLogs)
+          .where(
+            and(
+              eq(syncLogs.userId, user.id),
+              eq(syncLogs.executionType, "auto"),
+              gte(syncLogs.startedAt, todayStart)
+            )
+          )
+          .orderBy(desc(syncLogs.startedAt))
+          .limit(1);
+
+        if (existingAutoToday.length > 0) {
+          console.log(`Cron: Usuario ${user.id} ya tuvo su ejecución automática hoy. Saltando.`);
+          skippedAlreadySyncedToday++;
+          continue;
+        }
+      }
+
 
       let accessToken: string;
       try {
@@ -200,7 +247,7 @@ export async function GET(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, totalAdded });
+    return NextResponse.json({ success: true, totalAdded, skippedAlreadySyncedToday });
   } catch (error) {
     console.error("Cron Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
