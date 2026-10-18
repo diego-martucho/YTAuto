@@ -4,8 +4,7 @@ import { db } from "@/db";
 import { targetPlaylists, channelRules } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { getValidYouTubeAccessToken } from "@/lib/youtube/token";
-import { getUserPlaylists, createYouTubePlaylist } from "@/lib/youtube/api";
-import { normalizeText } from "@/lib/utils";
+import { getUserPlaylists } from "@/lib/youtube/api";
 
 async function getPlaylistsWithRuleCounts(userId: string) {
   return db
@@ -49,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const userId = session.user.id;
     const body = await req.json();
-    const { action, name, description, privacyStatus } = body;
+    const { action } = body;
 
     if (action === "sync") {
       const accessToken = await getValidYouTubeAccessToken(userId);
@@ -58,29 +57,6 @@ export async function POST(req: NextRequest) {
       }
 
       const apiPlaylists = await getUserPlaylists(accessToken);
-
-      // Google's YouTube Data API v3 blocks access to the native system "Watch Later" (WL) playlist
-      // both in playlists.list and playlistItems.insert.
-      // If the user doesn't have a custom "Ver más tarde" playlist yet, create one automatically
-      // so it appears on sync and works seamlessly with automation rules.
-      const hasWatchLater = apiPlaylists.some((p) => {
-        const norm = normalizeText(p.title);
-        return norm === "ver mas tarde" || norm === "watch later";
-      });
-
-      if (!hasWatchLater) {
-        try {
-          const createdWatchLater = await createYouTubePlaylist(
-            accessToken,
-            "Ver más tarde",
-            "Lista Ver más tarde sincronizada automáticamente por YTAuto",
-            "private"
-          );
-          apiPlaylists.push(createdWatchLater);
-        } catch (createErr) {
-          console.warn("Could not auto-create 'Ver más tarde' playlist during sync:", createErr);
-        }
-      }
 
       const existingPlaylists = await db
         .select()
@@ -124,33 +100,6 @@ export async function POST(req: NextRequest) {
 
       const allPlaylists = await getPlaylistsWithRuleCounts(userId);
       return NextResponse.json(allPlaylists);
-    } else if (action === "create") {
-      if (!name || !name.trim()) {
-        return NextResponse.json({ error: "El nombre de la lista es obligatorio" }, { status: 400 });
-      }
-
-      const accessToken = await getValidYouTubeAccessToken(userId);
-      if (!accessToken) {
-        return NextResponse.json({ error: "No valid YouTube access token" }, { status: 403 });
-      }
-
-      const createdYt = await createYouTubePlaylist(
-        accessToken,
-        name.trim(),
-        description || "Lista gestionada por YTAuto",
-        privacyStatus || "private"
-      );
-
-      const [inserted] = await db
-        .insert(targetPlaylists)
-        .values({
-          userId,
-          playlistId: createdYt.id,
-          playlistName: createdYt.title,
-        })
-        .returning();
-
-      return NextResponse.json({ ...inserted, rulesCount: 0, activeRulesCount: 0 }, { status: 201 });
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }

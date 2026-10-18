@@ -50,6 +50,9 @@
 }
 
 :root {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
   --background: #090d16;
   --foreground: #f1f5f9;
   --card: rgba(18, 24, 38, 0.75);

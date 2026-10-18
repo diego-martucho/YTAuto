@@ -12,8 +12,6 @@ import {
   ExternalLink,
   SlidersHorizontal,
   GitBranch,
-  Clock,
-  Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -43,7 +41,6 @@ export default function PlaylistsPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [loading, setLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
-  const [isCreatingWatchLater, setIsCreatingWatchLater] = useState(false)
 
   // Custom Delete Modal state
   const [playlistToDelete, setPlaylistToDelete] = useState<Playlist | null>(null)
@@ -85,36 +82,11 @@ export default function PlaylistsPage() {
 
       const updated = await res.json()
       setPlaylists(updated)
-      toast.success('Listas sincronizadas correctamente (incluyendo "Ver más tarde")')
+      toast.success('Listas sincronizadas correctamente')
     } catch {
       toast.error('No se pudieron sincronizar las listas')
     } finally {
       setIsSyncing(false)
-    }
-  }
-
-  const handleCreateWatchLater = async () => {
-    try {
-      setIsCreatingWatchLater(true)
-      const res = await fetch('/api/playlists', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create',
-          name: 'Ver más tarde',
-          description: 'Lista Ver más tarde sincronizada automáticamente por YTAuto',
-          privacyStatus: 'private',
-        }),
-      })
-
-      if (!res.ok) throw new Error('Error al crear lista Ver más tarde')
-      const created = await res.json()
-      setPlaylists((prev) => [...prev, created])
-      toast.success('Lista "Ver más tarde" creada y vinculada con tu cuenta de YouTube')
-    } catch {
-      toast.error('No se pudo crear la lista "Ver más tarde"')
-    } finally {
-      setIsCreatingWatchLater(false)
     }
   }
 
@@ -137,13 +109,6 @@ export default function PlaylistsPage() {
       setIsDeleting(false)
     }
   }
-
-  const hasWatchLaterPlaylist = useMemo(() => {
-    return playlists.some((p) => {
-      const norm = normalizeText(p.playlistName)
-      return norm === 'ver mas tarde' || norm === 'watch later'
-    })
-  }, [playlists])
 
   // Filter and sort playlists
   const filteredPlaylists = useMemo(() => {
@@ -206,38 +171,6 @@ export default function PlaylistsPage() {
           Sincronizar desde YouTube
         </Button>
       </div>
-
-      {/* Aviso rápido si aún no está la lista "Ver más tarde" */}
-      {!loading && !hasWatchLaterPlaylist && (
-        <div className="glass-card rounded-2xl p-4 sm:p-5 border border-violet-500/25 bg-violet-500/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 shrink-0 mt-0.5">
-              <Clock className="h-4 w-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-100">
-                ¿Buscas la lista &ldquo;Ver más tarde&rdquo;?
-              </h3>
-              <p className="text-xs text-slate-300/90 mt-0.5 max-w-2xl leading-relaxed">
-                Por políticas de Google, la API oficial de YouTube bloquea el acceso de apps externas a la lista del sistema <code className="text-violet-300">WL</code>. Al sincronizar o hacer clic aquí, YTAuto habilita tu lista privada <strong>&ldquo;Ver más tarde&rdquo;</strong> en YouTube para que funcione sin restricciones con tus reglas.
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={handleCreateWatchLater}
-            disabled={isCreatingWatchLater || isSyncing}
-            size="sm"
-            className="bg-violet-600 hover:bg-violet-700 text-white font-semibold shrink-0 cursor-pointer self-start sm:self-center"
-          >
-            {isCreatingWatchLater ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            Habilitar &ldquo;Ver más tarde&rdquo;
-          </Button>
-        </div>
-      )}
 
       {/* Toolbar: Buscador, Filtro por Reglas y Orden */}
       {playlists.length > 0 && (
