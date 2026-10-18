@@ -1,0 +1,16 @@
+name: YTAuto Schedule Check
+
+on:
+  schedule:
+    # Verifica cada hora si se alcanzó el horario diario configurado por el usuario en la app
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar y ejecutar sincronización diaria si corresponde
+        run: |
+          curl -s -X GET "${{ secrets.PROD_URL }}/api/cron/sync-youtube" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

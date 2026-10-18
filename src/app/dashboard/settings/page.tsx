@@ -23,6 +23,32 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+const TIMEZONES = [
+  { value: 'America/Argentina/Buenos_Aires', label: 'Argentina - Buenos Aires (UTC-3)' },
+  { value: 'America/Montevideo', label: 'Uruguay - Montevideo (UTC-3)' },
+  { value: 'America/Santiago', label: 'Chile - Santiago (UTC-4 / UTC-3)' },
+  { value: 'America/Sao_Paulo', label: 'Brasil - São Paulo (UTC-3)' },
+  { value: 'America/Bogota', label: 'Colombia - Bogotá (UTC-5)' },
+  { value: 'America/Lima', label: 'Perú - Lima (UTC-5)' },
+  { value: 'America/Mexico_City', label: 'México - Ciudad de México (UTC-6)' },
+  { value: 'America/New_York', label: 'EE.UU. - Nueva York (EST/EDT)' },
+  { value: 'Europe/Madrid', label: 'España - Madrid (CET/CEST)' },
+  { value: 'UTC', label: 'UTC (Tiempo Universal Coordinado)' },
+]
+
+const SYNC_HOURS = Array.from({ length: 24 }, (_, i) => {
+  const hh = String(i).padStart(2, '0')
+  return { value: `${hh}:00`, label: `${hh}:00 hs` }
+})
 
 interface SettingsData {
   id?: string
@@ -45,7 +71,7 @@ interface BackupPreview {
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsData>({
     timezone: 'America/Argentina/Buenos_Aires',
-    syncTime: '00:00',
+    syncTime: '06:00',
     notificationsEnabled: true,
     notificationEmail: '',
   })
@@ -252,25 +278,68 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
-            <div className="flex items-center gap-3">
-              <div className="text-3xl font-display font-black text-indigo-300 font-mono-numbers">
-                06:00
-              </div>
-              <div>
-                <p className="font-semibold text-sm text-slate-200">Hora de Argentina (UTC-3)</p>
-                <p className="text-xs text-slate-400">Ejecución única diaria a las 09:00 UTC</p>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-slate-300 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                Horario de ejecución diaria
+              </Label>
+              <Select
+                value={settings.syncTime || '06:00'}
+                onValueChange={(val) => val && setSettings({ ...settings, syncTime: val })}
+              >
+                <SelectTrigger className="w-full h-10 bg-black/30 border-white/[0.1] text-slate-100 font-mono-numbers">
+                  <SelectValue placeholder="Selecciona una hora" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0f1523] border-white/[0.1] text-slate-100 max-h-60">
+                  {SYNC_HOURS.map((h) => (
+                    <SelectItem key={h.value} value={h.value} className="font-mono-numbers cursor-pointer">
+                      {h.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-slate-500">
+                Hora en la que se ejecutará la sincronización única del día.
+              </p>
             </div>
-            <Globe className="h-5 w-5 text-slate-500" />
+
+            <div className="space-y-2">
+              <Label className="text-slate-300 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                <Globe className="h-3.5 w-3.5 text-indigo-400" />
+                Zona horaria
+              </Label>
+              <Select
+                value={settings.timezone || 'America/Argentina/Buenos_Aires'}
+                onValueChange={(val) => val && setSettings({ ...settings, timezone: val })}
+              >
+                <SelectTrigger className="w-full h-10 bg-black/30 border-white/[0.1] text-slate-100">
+                  <SelectValue placeholder="Selecciona tu zona horaria" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0f1523] border-white/[0.1] text-slate-100 max-h-60">
+                  {TIMEZONES.map((tz) => (
+                    <SelectItem key={tz.value} value={tz.value} className="cursor-pointer">
+                      {tz.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-slate-500">
+                Se utiliza para calcular tu horario y las métricas del día.
+              </p>
+            </div>
           </div>
 
           <div className="mt-1 pt-4 border-t border-slate-800/40 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
               <div>
-                <p className="font-semibold text-xs text-slate-200">Sincronización diaria activa (1 vez al día)</p>
-                <p className="text-[11px] text-slate-400">Escaneo programado cada 24 horas con protección contra ejecuciones duplicadas. Ventana: 48hs.</p>
+                <p className="font-semibold text-xs text-slate-200">
+                  Sincronización programada a las <span className="text-indigo-300 font-mono-numbers">{settings.syncTime || '06:00'} hs</span> (1 vez al día)
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Verificación horaria automática con bloqueo de duplicados diarios. Ventana de detección: 48hs.
+                </p>
               </div>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
