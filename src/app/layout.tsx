@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -6,6 +6,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "YTAuto - Automatiza tus Listas de YouTube",
   description: "Automatiza y organiza tus listas de reproducción de YouTube con reglas inteligentes.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#090d16",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
