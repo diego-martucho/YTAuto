@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { processedVideos, channelRules, watchedChannels, targetPlaylists, syncLogs } from "@/db/schema";
-import { eq, desc, and, or, ilike, gte, lte } from "drizzle-orm";
+import { eq, desc, and, ilike, gte, lte, sql } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "videos"; // 'videos' or 'syncs'
-    const page = parseInt(searchParams.get("page") || "1", 10);
-    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    // Límite acotado: el cliente lo calcula según las filas que entran en pantalla
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10", 10) || 10));
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
     const dateFrom = searchParams.get("dateFrom");
@@ -40,16 +41,16 @@ export async function GET(req: NextRequest) {
         .limit(limit)
         .offset(offset);
 
-      const totalCount = await db
-        .select({ count: syncLogs.id })
+      const [{ count: total }] = await db
+        .select({ count: sql<number>`count(*)::int` })
         .from(syncLogs)
         .where(and(...conditions));
 
       return NextResponse.json({
         data: syncs,
-        total: totalCount.length,
+        total,
         page,
-        totalPages: Math.ceil(totalCount.length / limit)
+        totalPages: Math.max(1, Math.ceil(total / limit))
       });
     }
 
@@ -94,8 +95,8 @@ export async function GET(req: NextRequest) {
       .limit(limit)
       .offset(offset);
 
-    const totalCount = await db
-      .select({ id: processedVideos.id })
+    const [{ count: total }] = await db
+      .select({ count: sql<number>`count(*)::int` })
       .from(processedVideos)
       .innerJoin(channelRules, eq(processedVideos.channelRuleId, channelRules.id))
       .innerJoin(watchedChannels, eq(channelRules.watchedChannelId, watchedChannels.id))
@@ -103,9 +104,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       data: videos,
-      total: totalCount.length,
+      total,
       page,
-      totalPages: Math.ceil(totalCount.length / limit)
+      totalPages: Math.max(1, Math.ceil(total / limit))
     });
 
   } catch (error) {
