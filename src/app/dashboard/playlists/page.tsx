@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
+import { useFitPageSize, usePagination } from '@/hooks/use-fit-page-size'
 import { normalizeText } from '@/lib/utils'
 
 interface Playlist {
@@ -36,6 +38,9 @@ interface Playlist {
   rulesCount?: number
   activeRulesCount?: number
 }
+
+const CARD_HEIGHT = 84
+const GRID_GAP = 12
 
 export default function PlaylistsPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([])
@@ -50,6 +55,14 @@ export default function PlaylistsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [rulesFilter, setRulesFilter] = useState<'all' | 'with_rules' | 'without_rules'>('all')
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'rules_desc' | 'videos_desc'>('name_asc')
+
+  // Paginado adaptable al alto disponible
+  const { measure: measureList, pageSize: fitPageSize } = useFitPageSize({
+    rowHeight: CARD_HEIGHT,
+    gap: GRID_GAP,
+    columns: { base: 1, md: 2, lg: 3 },
+    mobilePageSize: 10,
+  })
 
   useEffect(() => {
     fetchPlaylists()
@@ -143,6 +156,14 @@ export default function PlaylistsPage() {
       })
   }, [playlists, searchQuery, rulesFilter, sortBy])
 
+  const pagination = usePagination(filteredPlaylists, fitPageSize)
+  const { setPage } = pagination
+
+  // Volver a la primera página al cambiar búsqueda, filtros u orden
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, rulesFilter, sortBy, setPage])
+
   const hasActiveFilters =
     searchQuery.trim() !== '' || rulesFilter !== 'all' || sortBy !== 'name_asc'
 
@@ -153,11 +174,11 @@ export default function PlaylistsPage() {
   }
 
   return (
-    <div className="space-y-8 animate-pop-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black font-display text-slate-100">Tus Listas de Reproducción</h1>
-          <p className="text-slate-400 mt-1">
+    <div className="flex flex-col gap-4 md:h-full md:min-h-0 animate-pop-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-black font-display text-slate-100">Tus Listas de Reproducción</h1>
+          <p className="text-slate-400 text-sm mt-0.5 sm:truncate">
             Gestiona las listas de YouTube donde se organizarán los videos automáticamente.
           </p>
         </div>
@@ -165,17 +186,17 @@ export default function PlaylistsPage() {
         <Button
           onClick={handleSync}
           disabled={isSyncing}
-          className="bg-violet-600 hover:bg-violet-700 text-white border-none shadow-sm shadow-violet-600/30 font-semibold cursor-pointer shrink-0"
+          className="bg-violet-600 hover:bg-violet-700 text-white border-none shadow-sm shadow-violet-600/30 font-semibold cursor-pointer shrink-0 w-full sm:w-auto"
         >
-          {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          {isSyncing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
           Sincronizar desde YouTube
         </Button>
       </div>
 
       {/* Toolbar: Buscador, Filtro por Reglas y Orden */}
       {playlists.length > 0 && (
-        <div className="glass-card p-4 rounded-2xl border border-white/[0.08] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex-1 relative">
+        <div className="glass-card p-2.5 rounded-2xl border border-white/[0.08] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <Input
               type="text"
@@ -188,21 +209,22 @@ export default function PlaylistsPage() {
               <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                aria-label="Limpiar búsqueda"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-2">
             {/* Filtro por reglas asignadas */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-0">
               <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <Select
                 value={rulesFilter}
                 onValueChange={(val) => val && setRulesFilter(val as 'all' | 'with_rules' | 'without_rules')}
               >
-                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 min-w-40">
+                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 w-full sm:w-auto sm:min-w-40">
                   <SelectValue placeholder="Filtrar por reglas" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0f1523] border-white/[0.08] text-slate-200">
@@ -214,7 +236,7 @@ export default function PlaylistsPage() {
             </div>
 
             {/* Orden */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-0">
               <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <Select
                 value={sortBy}
@@ -222,7 +244,7 @@ export default function PlaylistsPage() {
                   val && setSortBy(val as 'name_asc' | 'name_desc' | 'rules_desc' | 'videos_desc')
                 }
               >
-                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 min-w-40">
+                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 w-full sm:w-auto sm:min-w-40">
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0f1523] border-white/[0.08] text-slate-200">
@@ -239,7 +261,7 @@ export default function PlaylistsPage() {
                 variant="ghost"
                 size="sm"
                 onClick={clearFilters}
-                className="text-xs text-slate-400 hover:text-slate-200 h-9 px-2"
+                className="text-xs text-slate-400 hover:text-slate-200 h-9 px-2 shrink-0"
               >
                 Limpiar
               </Button>
@@ -248,33 +270,22 @@ export default function PlaylistsPage() {
         </div>
       )}
 
-      {/* Contador de resultados */}
-      {!loading && playlists.length > 0 && (
-        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-          <span>
-            Mostrando <strong className="text-slate-200">{filteredPlaylists.length}</strong> de{' '}
-            <strong className="text-slate-200">{playlists.length}</strong>{' '}
-            {playlists.length === 1 ? 'lista' : 'listas'}
-          </span>
-          {hasActiveFilters && <span className="text-violet-400">Filtros aplicados</span>}
-        </div>
-      )}
-
-      {/* Lista de reproducción cards */}
+      {/* Lista de reproducción cards (el contenedor toma el alto restante en escritorio) */}
+      <div ref={measureList} className="md:flex-1 md:min-h-0">
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="glass-card rounded-2xl p-5 border border-white/[0.08] flex flex-col gap-4">
-              <Skeleton className="h-6 w-3/4" />
-              <div className="flex justify-between items-center mt-2">
-                <Skeleton className="h-5 w-16 rounded-full" />
-                <Skeleton className="h-8 w-8 rounded-md" />
+            <div key={i} className="glass-card rounded-2xl px-4 py-3 h-[84px] border border-white/[0.08] flex flex-col justify-between">
+              <Skeleton className="h-5 w-3/4" />
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-5 w-24 rounded-full" />
+                <Skeleton className="h-7 w-7 rounded-md" />
               </div>
             </div>
           ))}
         </div>
       ) : playlists.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border-2 border-dashed border-slate-700/60 bg-white/[0.01]">
+        <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl border-2 border-dashed border-slate-700/60 bg-white/[0.01] md:h-full">
           <div className="p-4 rounded-full bg-violet-500/10 border border-violet-500/20 mb-4">
             <ListMusic className="h-8 w-8 text-violet-500" />
           </div>
@@ -284,7 +295,7 @@ export default function PlaylistsPage() {
           </p>
         </div>
       ) : filteredPlaylists.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-white/[0.01]">
+        <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-white/[0.01] md:h-full">
           <Search className="h-8 w-8 text-slate-500 mb-3" />
           <h3 className="text-base font-semibold text-slate-200 font-display">Sin coincidencias</h3>
           <p className="text-slate-400 text-sm mt-1 max-w-sm">
@@ -300,17 +311,17 @@ export default function PlaylistsPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredPlaylists.map((playlist) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {pagination.pageItems.map((playlist) => {
             const rulesCount = playlist.rulesCount ?? 0
             return (
               <div
                 key={playlist.id}
-                className="glass-card-interactive rounded-2xl p-5 border border-white/[0.08] flex flex-col gap-3 transition-all hover:bg-white/[0.04]"
+                className="glass-card-interactive rounded-2xl px-4 py-3 h-[84px] border border-white/[0.08] flex flex-col justify-between gap-2 transition-all hover:bg-white/[0.04]"
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 min-w-0">
                   <h3
-                    className="font-semibold text-slate-100 line-clamp-2 leading-tight text-sm"
+                    className="font-semibold text-slate-100 truncate leading-tight text-sm"
                     title={playlist.playlistName}
                   >
                     {playlist.playlistName}
@@ -326,8 +337,8 @@ export default function PlaylistsPage() {
                   </a>
                 </div>
 
-                <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/[0.04] gap-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center justify-between pt-2 border-t border-white/[0.04] gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                     <Badge
                       variant="secondary"
                       className="bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 font-mono-numbers text-[11px]"
@@ -358,7 +369,7 @@ export default function PlaylistsPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => setPlaylistToDelete(playlist)}
-                    className="text-slate-400 hover:text-red-400 hover:bg-red-400/10 h-8 w-8 cursor-pointer shrink-0"
+                    className="text-slate-400 hover:text-red-400 hover:bg-red-400/10 h-7 w-7 cursor-pointer shrink-0"
                     title="Eliminar de YTAuto"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -368,6 +379,25 @@ export default function PlaylistsPage() {
             )
           })}
         </div>
+      )}
+      </div>
+
+      {/* Paginado y contador de resultados */}
+      {!loading && playlists.length > 0 && filteredPlaylists.length > 0 && (
+        <PaginationBar
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+          accent="violet"
+          summary={
+            <>
+              Mostrando <strong className="text-slate-200">{pagination.rangeStart}–{pagination.rangeEnd}</strong> de{' '}
+              <strong className="text-slate-200">{filteredPlaylists.length}</strong>{' '}
+              {filteredPlaylists.length === 1 ? 'lista' : 'listas'}
+              {hasActiveFilters && <span className="text-violet-400"> · filtrado de {playlists.length}</span>}
+            </>
+          }
+        />
       )}
 
       {/* Modal de confirmación para eliminar lista con estilos de la app */}

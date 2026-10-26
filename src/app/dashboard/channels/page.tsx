@@ -37,6 +37,8 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
+import { useFitPageSize, usePagination } from '@/hooks/use-fit-page-size'
 import { normalizeText } from '@/lib/utils'
 
 interface Channel {
@@ -54,6 +56,9 @@ interface VerifiedChannelData {
   thumbnail: string
   alreadyAdded?: boolean
 }
+
+const CARD_HEIGHT = 72
+const GRID_GAP = 12
 
 export default function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[]>([])
@@ -75,6 +80,14 @@ export default function ChannelsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'active_first'>('name_asc')
+
+  // Paginado adaptable al alto disponible
+  const { measure: measureList, pageSize: fitPageSize } = useFitPageSize({
+    rowHeight: CARD_HEIGHT,
+    gap: GRID_GAP,
+    columns: { base: 1, md: 2, lg: 3 },
+    mobilePageSize: 10,
+  })
 
   useEffect(() => {
     fetchChannels()
@@ -240,6 +253,14 @@ export default function ChannelsPage() {
       })
   }, [channels, searchQuery, statusFilter, sortBy])
 
+  const pagination = usePagination(filteredChannels, fitPageSize)
+  const { setPage } = pagination
+
+  // Volver a la primera página al cambiar búsqueda, filtros u orden
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, statusFilter, sortBy, setPage])
+
   const hasActiveFilters = searchQuery.trim() !== '' || statusFilter !== 'all' || sortBy !== 'name_asc'
 
   const clearFilters = () => {
@@ -249,20 +270,22 @@ export default function ChannelsPage() {
   }
 
   return (
-    <div className="space-y-8 animate-pop-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black font-display text-slate-100">Canales Monitorizados</h1>
-          <p className="text-slate-400 mt-1">Administra los canales de YouTube de los cuales quieres obtener videos.</p>
+    <div className="flex flex-col gap-4 md:h-full md:min-h-0 animate-pop-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-black font-display text-slate-100">Canales Monitorizados</h1>
+          <p className="text-slate-400 text-sm mt-0.5 sm:truncate">Administra los canales de YouTube de los cuales quieres obtener videos.</p>
         </div>
-        
+
         <Dialog open={isDialogOpen} onOpenChange={handleOpenDialog}>
-          <DialogTrigger>
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white border-none shadow-sm shadow-indigo-600/30 font-semibold cursor-pointer">
-              <Plus className="mr-2 h-4 w-4" /> Agregar canal
-            </Button>
+          <DialogTrigger
+            render={
+              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white border-none shadow-sm shadow-indigo-600/30 font-semibold cursor-pointer w-full sm:w-auto shrink-0" />
+            }
+          >
+            <Plus className="mr-1 h-4 w-4" /> Agregar canal
           </DialogTrigger>
-          <DialogContent className="glass-card border-white/[0.08] sm:max-w-[480px] p-6 bg-[#0f1523]/95 backdrop-blur-xl">
+          <DialogContent className="glass-card border-white/[0.08] sm:max-w-[480px] p-5 sm:p-6 bg-[#0f1523]/95 backdrop-blur-xl">
             <DialogHeader>
               <DialogTitle className="font-display font-bold text-lg text-slate-100">Agregar nuevo canal</DialogTitle>
               <DialogDescription className="text-slate-400 text-sm">
@@ -274,16 +297,16 @@ export default function ChannelsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="channelInput" className="text-slate-300 text-sm font-medium">URL o @Handle del Canal</Label>
                   <div className="flex gap-2">
-                    <Input 
+                    <Input
                       id="channelInput"
-                      placeholder="Ej: @midudev o youtube.com/@canal" 
+                      placeholder="Ej: @midudev o youtube.com/@canal"
                       value={inputValue}
                       onChange={(e) => {
                         setInputValue(e.target.value)
                         setVerifiedChannel(null)
                         setVerifyError(null)
                       }}
-                      className="bg-black/30 border-white/[0.1] text-slate-100 placeholder:text-slate-600 font-mono-numbers focus-visible:ring-indigo-500/50"
+                      className="bg-black/30 border-white/[0.1] text-slate-100 placeholder:text-slate-600 font-mono-numbers focus-visible:ring-indigo-500/50 min-w-0"
                       autoFocus
                     />
                     <Button
@@ -344,11 +367,11 @@ export default function ChannelsPage() {
                           {verifiedChannel.channelName}
                         </h4>
                         {verifiedChannel.alreadyAdded ? (
-                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium">
+                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium shrink-0">
                             Ya monitorizado
                           </span>
                         ) : (
-                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium">
+                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium shrink-0">
                             <CheckCircle2 className="h-3 w-3 mr-0.5" /> Existe
                           </span>
                         )}
@@ -361,7 +384,7 @@ export default function ChannelsPage() {
                 )}
               </div>
 
-              <DialogFooter className="gap-2 sm:justify-end">
+              <DialogFooter className="gap-2 sm:justify-end bg-transparent border-white/[0.06]">
                 <Button
                   type="button"
                   variant="ghost"
@@ -370,9 +393,9 @@ export default function ChannelsPage() {
                 >
                   Cancelar
                 </Button>
-                <Button 
-                  type="submit" 
-                  disabled={isAdding || isVerifying || !inputValue.trim() || inputValue.trim() === '@' || verifiedChannel?.alreadyAdded} 
+                <Button
+                  type="submit"
+                  disabled={isAdding || isVerifying || !inputValue.trim() || inputValue.trim() === '@' || verifiedChannel?.alreadyAdded}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold cursor-pointer shadow-sm shadow-indigo-600/30"
                 >
                   {isAdding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -386,10 +409,10 @@ export default function ChannelsPage() {
 
       {/* Toolbar: Buscador, Filtros y Orden */}
       {channels.length > 0 && (
-        <div className="glass-card p-4 rounded-2xl border border-white/[0.08] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex-1 relative">
+        <div className="glass-card p-2.5 rounded-2xl border border-white/[0.08] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-            <Input 
+            <Input
               type="text"
               placeholder="Buscar por nombre o ID de canal..."
               value={searchQuery}
@@ -400,18 +423,19 @@ export default function ChannelsPage() {
               <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                aria-label="Limpiar búsqueda"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-2">
             {/* Filtro de estado */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-0">
               <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <Select value={statusFilter} onValueChange={(val) => val && setStatusFilter(val as 'all' | 'active' | 'inactive')}>
-                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 min-w-32">
+                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 w-full sm:w-auto sm:min-w-32">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0f1523] border-white/[0.08] text-slate-200">
@@ -423,10 +447,10 @@ export default function ChannelsPage() {
             </div>
 
             {/* Orden */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-0">
               <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <Select value={sortBy} onValueChange={(val) => val && setSortBy(val as 'name_asc' | 'name_desc' | 'active_first')}>
-                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 min-w-36">
+                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 w-full sm:w-auto sm:min-w-36">
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0f1523] border-white/[0.08] text-slate-200">
@@ -442,7 +466,7 @@ export default function ChannelsPage() {
                 variant="ghost"
                 size="sm"
                 onClick={clearFilters}
-                className="text-xs text-slate-400 hover:text-slate-200 h-9 px-2"
+                className="text-xs text-slate-400 hover:text-slate-200 h-9 px-2 shrink-0"
               >
                 Limpiar
               </Button>
@@ -451,105 +475,115 @@ export default function ChannelsPage() {
         </div>
       )}
 
-      {/* Contador de resultados */}
-      {!loading && channels.length > 0 && (
-        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-          <span>
-            Mostrando <strong className="text-slate-200">{filteredChannels.length}</strong> de <strong className="text-slate-200">{channels.length}</strong> {channels.length === 1 ? 'canal' : 'canales'}
-          </span>
-          {hasActiveFilters && (
-            <span className="text-indigo-400">Filtros aplicados</span>
-          )}
-        </div>
-      )}
-
-      {/* Lista de canales */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="glass-card rounded-2xl p-5 border border-white/[0.08] flex gap-4">
-              <Skeleton className="h-12 w-12 rounded-full" />
-              <div className="space-y-2 flex-1">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
+      {/* Lista de canales (el contenedor toma el alto restante en escritorio) */}
+      <div ref={measureList} className="md:flex-1 md:min-h-0">
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="glass-card rounded-2xl px-4 h-[72px] border border-white/[0.08] flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      ) : channels.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border-2 border-dashed border-slate-700/60 bg-white/[0.01]">
-          <div className="p-4 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-4">
-            <Radio className="h-8 w-8 text-indigo-500" />
+            ))}
           </div>
-          <h3 className="text-lg font-semibold text-slate-100 font-display">No hay canales</h3>
-          <p className="text-slate-400 mt-1 max-w-sm">No estás monitorizando ningún canal. Agrega uno para empezar a importar videos automáticamente.</p>
-        </div>
-      ) : filteredChannels.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-white/[0.01]">
-          <Search className="h-8 w-8 text-slate-500 mb-3" />
-          <h3 className="text-base font-semibold text-slate-200 font-display">Sin coincidencias</h3>
-          <p className="text-slate-400 text-sm mt-1 max-w-sm">
-            No se encontró ningún canal que coincida con tus criterios de búsqueda o filtros.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={clearFilters}
-            className="mt-4 border-white/[0.1] bg-white/[0.04] text-slate-300 hover:text-white"
-          >
-            Restablecer filtros
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredChannels.map((channel) => (
-            <div key={channel.id} className="glass-card-interactive rounded-2xl p-5 border border-white/[0.08] flex items-center gap-4 transition-all hover:bg-white/[0.04]">
-              {channel.channelThumbnail ? (
-                <img src={channel.channelThumbnail} alt={channel.channelName} className="w-12 h-12 rounded-full border border-white/10 shrink-0 object-cover" />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                  <span className="text-lg font-bold text-slate-400">{channel.channelName.substring(0, 1).toUpperCase()}</span>
-                </div>
-              )}
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-semibold text-slate-100 truncate text-sm" title={channel.channelName}>{channel.channelName}</h3>
-                  {channel.channelUrl && (
-                    <a
-                      href={channel.channelUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-slate-500 hover:text-indigo-400 transition-colors shrink-0"
-                      title="Abrir en YouTube"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-                <p className="text-xs text-slate-500 font-mono-numbers truncate mt-0.5">{channel.channelId}</p>
-              </div>
-
-              <div className="flex items-center gap-3 ml-auto shrink-0">
-                <Switch 
-                  checked={channel.isActive}
-                  onCheckedChange={() => handleToggle(channel.id, channel.isActive)}
-                  className="data-[state=checked]:bg-emerald-500"
-                  title={channel.isActive ? "Desactivar monitorización" : "Activar monitorización"}
-                />
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => setChannelToDelete(channel)}
-                  className="text-slate-400 hover:text-red-400 hover:bg-red-400/10 h-8 w-8 cursor-pointer"
-                  title="Eliminar canal"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+        ) : channels.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl border-2 border-dashed border-slate-700/60 bg-white/[0.01] md:h-full">
+            <div className="p-4 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-4">
+              <Radio className="h-8 w-8 text-indigo-500" />
             </div>
-          ))}
-        </div>
+            <h3 className="text-lg font-semibold text-slate-100 font-display">No hay canales</h3>
+            <p className="text-slate-400 mt-1 max-w-sm">No estás monitorizando ningún canal. Agrega uno para empezar a importar videos automáticamente.</p>
+          </div>
+        ) : filteredChannels.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-white/[0.01] md:h-full">
+            <Search className="h-8 w-8 text-slate-500 mb-3" />
+            <h3 className="text-base font-semibold text-slate-200 font-display">Sin coincidencias</h3>
+            <p className="text-slate-400 text-sm mt-1 max-w-sm">
+              No se encontró ningún canal que coincida con tus criterios de búsqueda o filtros.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearFilters}
+              className="mt-4 border-white/[0.1] bg-white/[0.04] text-slate-300 hover:text-white"
+            >
+              Restablecer filtros
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {pagination.pageItems.map((channel) => (
+              <div key={channel.id} className="glass-card-interactive rounded-2xl px-4 h-[72px] border border-white/[0.08] flex items-center gap-3 transition-all hover:bg-white/[0.04]">
+                {channel.channelThumbnail ? (
+                  <img src={channel.channelThumbnail} alt={channel.channelName} className="w-10 h-10 rounded-full border border-white/10 shrink-0 object-cover" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                    <span className="text-base font-bold text-slate-400">{channel.channelName.substring(0, 1).toUpperCase()}</span>
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-semibold text-slate-100 truncate text-sm" title={channel.channelName}>{channel.channelName}</h3>
+                    {channel.channelUrl && (
+                      <a
+                        href={channel.channelUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-500 hover:text-indigo-400 transition-colors shrink-0"
+                        title="Abrir en YouTube"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 font-mono-numbers truncate mt-0.5">{channel.channelId}</p>
+                </div>
+
+                <div className="flex items-center gap-2 ml-auto shrink-0">
+                  <Switch
+                    checked={channel.isActive}
+                    onCheckedChange={() => handleToggle(channel.id, channel.isActive)}
+                    className="data-checked:bg-emerald-500"
+                    title={channel.isActive ? "Desactivar monitorización" : "Activar monitorización"}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setChannelToDelete(channel)}
+                    className="text-slate-400 hover:text-red-400 hover:bg-red-400/10 h-8 w-8 cursor-pointer"
+                    title="Eliminar canal"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Paginado y contador de resultados */}
+      {!loading && channels.length > 0 && filteredChannels.length > 0 && (
+        <PaginationBar
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+          accent="indigo"
+          summary={
+            <>
+              Mostrando <strong className="text-slate-200">{pagination.rangeStart}–{pagination.rangeEnd}</strong> de{' '}
+              <strong className="text-slate-200">{filteredChannels.length}</strong>{' '}
+              {filteredChannels.length === 1 ? 'canal' : 'canales'}
+              {hasActiveFilters && (
+                <span className="text-indigo-400"> · filtrado de {channels.length}</span>
+              )}
+            </>
+          }
+        />
       )}
 
       {/* Modal de confirmación para eliminar canal con estilos de la app */}

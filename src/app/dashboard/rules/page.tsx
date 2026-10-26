@@ -39,6 +39,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
+import { useFitPageSize, usePagination } from '@/hooks/use-fit-page-size'
 import { normalizeText } from '@/lib/utils'
 
 interface Channel {
@@ -63,6 +65,9 @@ interface Rule {
   channelName: string
   playlistName: string
 }
+
+const CARD_HEIGHT = 116
+const GRID_GAP = 12
 
 export default function RulesPage() {
   const [rules, setRules] = useState<Rule[]>([])
@@ -93,6 +98,14 @@ export default function RulesPage() {
     filterValue: '',
     excludeValue: '',
     includeShorts: false
+  })
+
+  // Paginado adaptable al alto disponible
+  const { measure: measureList, pageSize: fitPageSize } = useFitPageSize({
+    rowHeight: CARD_HEIGHT,
+    gap: GRID_GAP,
+    columns: { base: 1, lg: 2 },
+    mobilePageSize: 8,
   })
 
   useEffect(() => {
@@ -309,6 +322,14 @@ export default function RulesPage() {
       })
   }, [rules, searchQuery, statusFilter, typeFilter, sortBy])
 
+  const pagination = usePagination(filteredRules, fitPageSize)
+  const { setPage } = pagination
+
+  // Volver a la primera página al cambiar búsqueda, filtros u orden
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, statusFilter, typeFilter, sortBy, setPage])
+
   const hasActiveFilters = searchQuery.trim() !== '' || statusFilter !== 'all' || typeFilter !== 'all' || sortBy !== 'channel_asc'
 
   const clearFilters = () => {
@@ -319,21 +340,23 @@ export default function RulesPage() {
   }
 
   return (
-    <div className="space-y-8 animate-pop-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black font-display text-slate-100">Reglas de Organización</h1>
-          <p className="text-slate-400 mt-1">Configura cómo se envían los videos de los canales a tus listas.</p>
+    <div className="flex flex-col gap-4 md:h-full md:min-h-0 animate-pop-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-black font-display text-slate-100">Reglas de Organización</h1>
+          <p className="text-slate-400 text-sm mt-0.5 sm:truncate">Configura cómo se envían los videos de los canales a tus listas.</p>
         </div>
         
         {/* Modal de Crear / Editar Regla */}
         <Dialog open={isDialogOpen} onOpenChange={handleOpenCreateDialog}>
-          <DialogTrigger>
-            <Button className="bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm shadow-amber-600/30 font-semibold cursor-pointer shrink-0">
-              <Plus className="mr-2 h-4 w-4" /> Crear regla
-            </Button>
+          <DialogTrigger
+            render={
+              <Button className="bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm shadow-amber-600/30 font-semibold cursor-pointer shrink-0 w-full sm:w-auto" />
+            }
+          >
+            <Plus className="mr-1 h-4 w-4" /> Crear regla
           </DialogTrigger>
-          <DialogContent className="glass-card border-white/[0.08] sm:max-w-xl md:max-w-2xl p-6 sm:p-7 bg-[#0f1523]/95 backdrop-blur-xl">
+          <DialogContent className="glass-card border-white/[0.08] sm:max-w-xl md:max-w-2xl p-5 sm:p-7 bg-[#0f1523]/95 backdrop-blur-xl">
             <DialogHeader className="gap-1.5 text-left">
               <DialogTitle className="font-display font-bold text-xl text-slate-100">
                 {editingRuleId ? 'Editar regla de organización' : 'Crear nueva regla'}
@@ -524,7 +547,7 @@ export default function RulesPage() {
               </div>
 
               {/* Opción de incluir/excluir Shorts */}
-              <div className="flex items-center justify-between p-3 rounded-lg border border-white/[0.04] bg-white/[0.02]">
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/[0.04] bg-white/[0.02]">
                 <div className="space-y-0.5">
                   <Label htmlFor="includeShorts" className="text-slate-300 text-sm font-medium">
                     Incluir YouTube Shorts
@@ -537,11 +560,11 @@ export default function RulesPage() {
                   id="includeShorts"
                   checked={formData.includeShorts}
                   onCheckedChange={(checked) => setFormData({ ...formData, includeShorts: checked })}
-                  className="data-[state=checked]:bg-emerald-500"
+                  className="data-checked:bg-emerald-500 shrink-0"
                 />
               </div>
 
-              <DialogFooter className="gap-2 sm:justify-end pt-3 border-t border-white/[0.06]">
+              <DialogFooter className="gap-2 sm:justify-end bg-transparent border-white/[0.06]">
                 <Button
                   type="button"
                   variant="ghost"
@@ -566,8 +589,8 @@ export default function RulesPage() {
 
       {/* Toolbar: Buscador, Filtros y Orden */}
       {rules.length > 0 && (
-        <div className="glass-card p-4 rounded-2xl border border-white/[0.08] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex-1 relative">
+        <div className="glass-card p-2.5 rounded-2xl border border-white/[0.08] flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 shrink-0">
+          <div className="flex-1 relative min-w-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <Input 
               type="text"
@@ -580,18 +603,19 @@ export default function RulesPage() {
               <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                aria-label="Limpiar búsqueda"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          <div className="grid grid-cols-3 sm:flex items-center gap-2">
             {/* Filtro de estado */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1.5 min-w-0 sm:flex-1 lg:flex-none">
+              <SlidersHorizontal className="hidden sm:block h-3.5 w-3.5 text-slate-400 shrink-0" />
               <Select value={statusFilter} onValueChange={(val) => val && setStatusFilter(val as 'all' | 'active' | 'inactive')}>
-                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 min-w-32">
+                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 w-full lg:w-auto lg:min-w-32">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0f1523] border-white/[0.08] text-slate-200">
@@ -603,10 +627,10 @@ export default function RulesPage() {
             </div>
 
             {/* Filtro de tipo de condición */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Filter className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1.5 min-w-0 sm:flex-1 lg:flex-none">
+              <Filter className="hidden sm:block h-3.5 w-3.5 text-slate-400 shrink-0" />
               <Select value={typeFilter} onValueChange={(val) => val && setTypeFilter(val as 'all' | 'all_videos' | 'title_contains' | 'title_any_of')}>
-                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 min-w-36">
+                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 w-full lg:w-auto lg:min-w-36">
                   <SelectValue placeholder="Condición" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0f1523] border-white/[0.08] text-slate-200">
@@ -619,10 +643,10 @@ export default function RulesPage() {
             </div>
 
             {/* Orden */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1.5 min-w-0 sm:flex-1 lg:flex-none">
+              <ArrowUpDown className="hidden sm:block h-3.5 w-3.5 text-slate-400 shrink-0" />
               <Select value={sortBy} onValueChange={(val) => val && setSortBy(val as 'channel_asc' | 'channel_desc' | 'playlist_asc' | 'active_first')}>
-                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 min-w-40">
+                <SelectTrigger className="bg-black/30 border-white/[0.08] text-slate-200 text-xs h-9 w-full lg:w-auto lg:min-w-40">
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0f1523] border-white/[0.08] text-slate-200">
@@ -639,7 +663,7 @@ export default function RulesPage() {
                 variant="ghost"
                 size="sm"
                 onClick={clearFilters}
-                className="text-xs text-slate-400 hover:text-slate-200 h-9 px-2"
+                className="text-xs text-slate-400 hover:text-slate-200 h-9 px-2 col-span-3 sm:col-span-1 shrink-0"
               >
                 Limpiar
               </Button>
@@ -648,23 +672,12 @@ export default function RulesPage() {
         </div>
       )}
 
-      {/* Contador de resultados */}
-      {!loading && rules.length > 0 && (
-        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-          <span>
-            Mostrando <strong className="text-slate-200">{filteredRules.length}</strong> de <strong className="text-slate-200">{rules.length}</strong> {rules.length === 1 ? 'regla' : 'reglas'}
-          </span>
-          {hasActiveFilters && (
-            <span className="text-amber-400">Filtros aplicados</span>
-          )}
-        </div>
-      )}
-
-      {/* Lista de reglas en DOS COLUMNAS (Requirement 3) */}
+      {/* Lista de reglas en DOS COLUMNAS (Requirement 3) - toma el alto restante en escritorio */}
+      <div ref={measureList} className="md:flex-1 md:min-h-0">
       {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="glass-card rounded-2xl p-5 border border-white/[0.08]">
+            <div key={i} className="glass-card rounded-2xl px-4 py-3 h-[116px] border border-white/[0.08]">
               <div className="flex items-center gap-4 mb-3">
                 <Skeleton className="h-6 w-1/3" />
                 <Skeleton className="h-4 w-4" />
@@ -675,7 +688,7 @@ export default function RulesPage() {
           ))}
         </div>
       ) : rules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border-2 border-dashed border-slate-700/60 bg-white/[0.01]">
+        <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl border-2 border-dashed border-slate-700/60 bg-white/[0.01] md:h-full">
           <div className="p-4 rounded-full bg-amber-500/10 border border-amber-500/20 mb-4">
             <GitBranch className="h-8 w-8 text-amber-500" />
           </div>
@@ -683,7 +696,7 @@ export default function RulesPage() {
           <p className="text-slate-400 mt-1 max-w-sm">Crea una regla para empezar a organizar automáticamente los videos de tus canales en tus listas.</p>
         </div>
       ) : filteredRules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-white/[0.01]">
+        <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-white/[0.01] md:h-full">
           <Search className="h-8 w-8 text-slate-500 mb-3" />
           <h3 className="text-base font-semibold text-slate-200 font-display">Sin coincidencias</h3>
           <p className="text-slate-400 text-sm mt-1 max-w-sm">
@@ -699,20 +712,20 @@ export default function RulesPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredRules.map((rule) => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {pagination.pageItems.map((rule) => (
             <div
               key={rule.id}
-              className="glass-card-interactive rounded-2xl p-5 border border-white/[0.08] flex flex-col justify-between gap-4 transition-all hover:bg-white/[0.04]"
+              className="glass-card-interactive rounded-2xl px-4 py-3 h-[116px] border border-white/[0.08] flex flex-col gap-2 transition-all hover:bg-white/[0.04] overflow-hidden"
             >
               {/* Header: Canal -> Lista y Controles */}
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2 text-slate-100 font-semibold flex-wrap flex-1 min-w-0">
-                  <span className="truncate max-w-[180px] text-sm text-slate-200" title={rule.channelName}>
+                <div className="flex items-center gap-2 text-slate-100 font-semibold flex-1 min-w-0">
+                  <span className="truncate min-w-0 text-sm text-slate-200" title={rule.channelName}>
                     {rule.channelName || 'Canal desconocido'}
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                  <span className="truncate max-w-[180px] text-sm text-indigo-300" title={rule.playlistName}>
+                  <span className="truncate min-w-0 text-sm text-indigo-300" title={rule.playlistName}>
                     {rule.playlistName || 'Lista desconocida'}
                   </span>
                 </div>
@@ -721,7 +734,7 @@ export default function RulesPage() {
                   <Switch 
                     checked={rule.isActive}
                     onCheckedChange={() => handleToggle(rule.id, rule.isActive)}
-                    className="data-[state=checked]:bg-emerald-500 scale-90"
+                    className="data-checked:bg-emerald-500 scale-90"
                     title={rule.isActive ? "Desactivar regla" : "Activar regla"}
                   />
                   {/* Botón de editar regla (Requirement 2) */}
@@ -747,13 +760,13 @@ export default function RulesPage() {
               </div>
 
               {/* Badges de Condiciones Incluyente y Excluyente */}
-              <div className="flex flex-col gap-2 pt-1 border-t border-white/[0.04]">
-                <div className="flex items-center gap-2 flex-wrap text-xs">
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-white/[0.04] min-w-0">
+                <div className="flex items-center gap-2 text-xs min-w-0">
                   <Badge variant="outline" className="border-amber-500/30 text-amber-400 bg-amber-500/10 text-[11px] shrink-0">
                     {getFilterBadgeLabel(rule.filterType)}
                   </Badge>
                   {rule.filterValue && (
-                    <span className="text-xs text-slate-300 bg-slate-800/70 px-2 py-0.5 rounded border border-white/[0.06] font-mono-numbers truncate max-w-[200px]" title={rule.filterValue}>
+                    <span className="text-xs text-slate-300 bg-slate-800/70 px-2 py-0.5 rounded border border-white/[0.06] font-mono-numbers truncate min-w-0" title={rule.filterValue}>
                       &ldquo;{rule.filterValue}&rdquo;
                     </span>
                   )}
@@ -761,11 +774,11 @@ export default function RulesPage() {
 
                 {/* Badge de exclusión si tiene condición excluyente */}
                 {rule.excludeValue && (
-                  <div className="flex items-center gap-1.5 text-xs text-rose-300">
+                  <div className="flex items-center gap-1.5 text-xs text-rose-300 min-w-0">
                     <Badge variant="outline" className="border-rose-500/30 text-rose-400 bg-rose-500/10 text-[10px] shrink-0 flex items-center gap-1">
                       <Ban className="h-2.5 w-2.5" /> Excluye
                     </Badge>
-                    <span className="text-[11px] text-rose-300/90 font-mono-numbers truncate max-w-[220px]" title={rule.excludeValue}>
+                    <span className="text-[11px] text-rose-300/90 font-mono-numbers truncate min-w-0" title={rule.excludeValue}>
                       &ldquo;{rule.excludeValue}&rdquo;
                     </span>
                   </div>
@@ -774,6 +787,25 @@ export default function RulesPage() {
             </div>
           ))}
         </div>
+      )}
+      </div>
+
+      {/* Paginado y contador de resultados */}
+      {!loading && rules.length > 0 && filteredRules.length > 0 && (
+        <PaginationBar
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+          accent="amber"
+          summary={
+            <>
+              Mostrando <strong className="text-slate-200">{pagination.rangeStart}–{pagination.rangeEnd}</strong> de{' '}
+              <strong className="text-slate-200">{filteredRules.length}</strong>{' '}
+              {filteredRules.length === 1 ? 'regla' : 'reglas'}
+              {hasActiveFilters && <span className="text-amber-400"> · filtrado de {rules.length}</span>}
+            </>
+          }
+        />
       )}
 
       {/* Modal de confirmación para eliminar regla con estilos de la app */}

@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
         desc(sql`count(${processedVideos.id}) filter (where ${processedVideos.status} = 'added')`),
         desc(sql`count(${processedVideos.id})`)
       )
-      .limit(4);
+      .limit(10);
 
     // 10. Top listas de reproducción más activas
     const topPlaylists = await db
@@ -195,7 +195,7 @@ export async function GET(req: NextRequest) {
       .where(eq(targetPlaylists.userId, userId))
       .groupBy(targetPlaylists.id)
       .orderBy(desc(targetPlaylists.videosAddedCount), desc(sql`count(${channelRules.id})`))
-      .limit(4);
+      .limit(10);
 
     return NextResponse.json({
       channelsCount,
