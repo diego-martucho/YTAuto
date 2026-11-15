@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { targetPlaylists, channelRules } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { targetPlaylists, channelRules, watchedChannels, processedVideos } from "@/db/schema";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { getValidYouTubeAccessToken } from "@/lib/youtube/token";
 import { getUserPlaylists } from "@/lib/youtube/api";
 
@@ -14,6 +14,11 @@ async function getPlaylistsWithRuleCounts(userId: string) {
       playlistId: targetPlaylists.playlistId,
       playlistName: targetPlaylists.playlistName,
       videosAddedCount: targetPlaylists.videosAddedCount,
+      description: targetPlaylists.description,
+      thumbnailUrl: targetPlaylists.thumbnailUrl,
+      itemCount: targetPlaylists.itemCount,
+      privacyStatus: targetPlaylists.privacyStatus,
+      lastSyncedAt: targetPlaylists.lastSyncedAt,
       createdAt: targetPlaylists.createdAt,
       rulesCount: sql<number>`count(${channelRules.id})::int`,
       activeRulesCount: sql<number>`count(${channelRules.id}) filter (where ${channelRules.isActive} = true)::int`,
@@ -24,14 +29,73 @@ async function getPlaylistsWithRuleCounts(userId: string) {
     .groupBy(targetPlaylists.id);
 }
 
-export async function GET(req: NextRequest) {
+/**
+ * Listas con métricas de actividad (último video agregado, agregados en 7 días)
+ * y los canales que alimentan cada lista a través de sus reglas.
+ */
+async function getEnrichedPlaylists(userId: string) {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [base, activity, sources] = await Promise.all([
+    getPlaylistsWithRuleCounts(userId),
+    db
+      .select({
+        targetPlaylistId: processedVideos.targetPlaylistId,
+        lastAddedAt: sql<string | null>`max(${processedVideos.processedAt}) filter (where ${processedVideos.status} = 'added')`,
+        addedLast7Days: sql<number>`count(*) filter (where ${processedVideos.status} = 'added' and ${processedVideos.processedAt} >= ${sevenDaysAgo})::int`,
+      })
+      .from(processedVideos)
+      .innerJoin(targetPlaylists, eq(processedVideos.targetPlaylistId, targetPlaylists.id))
+      .where(eq(targetPlaylists.userId, userId))
+      .groupBy(processedVideos.targetPlaylistId),
+    db
+      .select({
+        targetPlaylistId: channelRules.targetPlaylistId,
+        channelId: watchedChannels.id,
+        channelName: watchedChannels.channelName,
+        channelThumbnail: watchedChannels.channelThumbnail,
+        ruleActive: channelRules.isActive,
+      })
+      .from(channelRules)
+      .innerJoin(watchedChannels, eq(channelRules.watchedChannelId, watchedChannels.id))
+      .where(eq(watchedChannels.userId, userId)),
+  ]);
+
+  const activityById = new Map(activity.map((a) => [a.targetPlaylistId, a]));
+  const sourcesById = new Map<
+    string,
+    Array<{ id: string; name: string; thumbnail: string | null; active: boolean }>
+  >();
+  for (const s of sources) {
+    const list = sourcesById.get(s.targetPlaylistId) ?? [];
+    // Un canal puede tener varias reglas hacia la misma lista: se muestra una vez
+    const existing = list.find((c) => c.id === s.channelId);
+    if (existing) {
+      existing.active = existing.active || s.ruleActive;
+    } else {
+      list.push({ id: s.channelId, name: s.channelName, thumbnail: s.channelThumbnail, active: s.ruleActive });
+    }
+    sourcesById.set(s.targetPlaylistId, list);
+  }
+
+  return base.map((p) => ({
+    ...p,
+    lastAddedAt: activityById.get(p.id)?.lastAddedAt ?? null,
+    addedLast7Days: activityById.get(p.id)?.addedLast7Days ?? 0,
+    sourceChannels: (sourcesById.get(p.id) ?? []).sort((a, b) =>
+      a.name.localeCompare(b.name, "es", { sensitivity: "base" })
+    ),
+  }));
+}
+
+export async function GET() {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const playlists = await getPlaylistsWithRuleCounts(session.user.id);
+    const playlists = await getEnrichedPlaylists(session.user.id);
     return NextResponse.json(playlists);
   } catch (error) {
     console.error("Error fetching playlists:", error);
@@ -57,14 +121,11 @@ export async function POST(req: NextRequest) {
       }
 
       const apiPlaylists = await getUserPlaylists(accessToken);
-
-      const existingPlaylists = await db
-        .select()
-        .from(targetPlaylists)
-        .where(eq(targetPlaylists.userId, userId));
+      const existingPlaylists = await getPlaylistsWithRuleCounts(userId);
 
       const existingByYtId = new Map(existingPlaylists.map((p) => [p.playlistId, p]));
       const apiIds = new Set(apiPlaylists.map((p) => p.id));
+      const now = new Date();
 
       // Insert new ones
       const newPlaylistsToInsert = apiPlaylists
@@ -73,33 +134,59 @@ export async function POST(req: NextRequest) {
           userId,
           playlistId: p.id,
           playlistName: p.title,
+          description: p.description || null,
+          thumbnailUrl: p.thumbnailUrl || null,
+          itemCount: p.itemCount,
+          privacyStatus: p.privacyStatus,
+          lastSyncedAt: now,
         }));
 
-      if (newPlaylistsToInsert.length > 0) {
-        await db.insert(targetPlaylists).values(newPlaylistsToInsert);
-      }
-
-      // Update renamed playlists
-      for (const apiPl of apiPlaylists) {
-        const existing = existingByYtId.get(apiPl.id);
-        if (existing && existing.playlistName !== apiPl.title) {
-          await db
+      // Update name + metadata of existing ones (todo en una sola ida a la base)
+      const updates = apiPlaylists
+        .filter((p) => existingByYtId.has(p.id))
+        .map((p) =>
+          db
             .update(targetPlaylists)
-            .set({ playlistName: apiPl.title })
-            .where(eq(targetPlaylists.id, existing.id));
-        }
-      }
+            .set({
+              playlistName: p.title,
+              description: p.description || null,
+              thumbnailUrl: p.thumbnailUrl || null,
+              itemCount: p.itemCount,
+              privacyStatus: p.privacyStatus,
+              lastSyncedAt: now,
+            })
+            .where(eq(targetPlaylists.id, existingByYtId.get(p.id)!.id))
+        );
 
-      // Delete missing ones (deleted in YouTube)
+      // Delete missing ones (deleted in YouTube). Sus reglas se eliminan en cascada,
+      // por eso se informan al usuario.
       const missingPlaylists = existingPlaylists.filter((p) => !apiIds.has(p.playlistId));
-      if (missingPlaylists.length > 0) {
-        for (const mp of missingPlaylists) {
-          await db.delete(targetPlaylists).where(eq(targetPlaylists.id, mp.id));
-        }
+
+      const statements = [
+        ...(newPlaylistsToInsert.length > 0 ? [db.insert(targetPlaylists).values(newPlaylistsToInsert)] : []),
+        ...updates,
+        ...(missingPlaylists.length > 0
+          ? [
+              db.delete(targetPlaylists).where(
+                and(
+                  eq(targetPlaylists.userId, userId),
+                  inArray(targetPlaylists.id, missingPlaylists.map((p) => p.id))
+                )
+              ),
+            ]
+          : []),
+      ];
+
+      if (statements.length > 0) {
+        await db.batch(statements as [(typeof statements)[number], ...(typeof statements)[number][]]);
       }
 
-      const allPlaylists = await getPlaylistsWithRuleCounts(userId);
-      return NextResponse.json(allPlaylists);
+      const allPlaylists = await getEnrichedPlaylists(userId);
+      return NextResponse.json({
+        playlists: allPlaylists,
+        added: newPlaylistsToInsert.length,
+        removed: missingPlaylists.map((p) => ({ playlistName: p.playlistName, rulesCount: p.rulesCount })),
+      });
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
@@ -138,4 +225,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
-

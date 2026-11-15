@@ -12,12 +12,13 @@
 
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
 
-interface YouTubePlaylist {
+export interface YouTubePlaylist {
   id: string;
   title: string;
   description: string;
   thumbnailUrl: string;
   itemCount: number;
+  privacyStatus: string | null;
 }
 
 interface YouTubeSearchResult {
@@ -137,7 +138,7 @@ export async function getUserPlaylists(
 
   do {
     const params = new URLSearchParams({
-      part: "snippet,contentDetails",
+      part: "snippet,contentDetails,status",
       mine: "true",
       maxResults: "50",
       ...(pageToken ? { pageToken } : {}),
@@ -163,6 +164,7 @@ export async function getUserPlaylists(
           item.snippet.thumbnails?.default?.url ||
           "",
         itemCount: item.contentDetails?.itemCount || 0,
+        privacyStatus: item.status?.privacyStatus ?? null,
       });
     }
 
