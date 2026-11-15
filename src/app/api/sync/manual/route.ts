@@ -1,21 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db } from "@/db";
-import {
-  watchedChannels,
-  channelRules,
-  targetPlaylists,
-  processedVideos,
-  syncLogs,
-} from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
 import { getValidYouTubeAccessToken, TokenRevokedError } from "@/lib/youtube/token";
-import { getLatestChannelVideos } from "@/lib/youtube/rss";
-import { addVideoToPlaylist, getPlaylistVideoIds, getVideoDurations } from "@/lib/youtube/api";
-import { matchesTitleFilter, isTitleExcluded } from "@/lib/utils";
+import { runUserSync } from "@/lib/sync/run-user-sync";
 
-export async function POST(req: NextRequest) {
-  const startedAt = new Date();
+export const maxDuration = 300; // 5 minutos máx. en Vercel Hobby (fluid compute)
+
+export async function POST() {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -28,10 +18,7 @@ export async function POST(req: NextRequest) {
       await getValidYouTubeAccessToken(userId);
     } catch (error) {
       if (error instanceof TokenRevokedError) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 401 }
-        );
+        return NextResponse.json({ error: error.message }, { status: 401 });
       }
       return NextResponse.json(
         { error: "No se pudo obtener el token de acceso a YouTube. Inicia sesión nuevamente." },
@@ -39,254 +26,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Usamos una ventana móvil de 48 horas (stateless).
-    // Al ser idempotente, asegura que no se pierdan videos de ayer ni de hoy,
-    // y evita duplicados verificando la playlist.
-    const now = new Date();
-    const windowStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-    const windowEnd = now;
+    const result = await runUserSync(userId, "manual");
 
-    // Obtener canales monitorizados activos del usuario
-    const userChannels = await db
-      .select()
-      .from(watchedChannels)
-      .where(and(eq(watchedChannels.userId, userId), eq(watchedChannels.isActive, true)));
-
-    if (userChannels.length === 0) {
+    if (!result.syncLogId) {
       return NextResponse.json({
         success: true,
-        channelsChecked: 0,
-        videosFound: 0,
-        videosAdded: 0,
-        videosFiltered: 0,
-        videosErrored: 0,
+        ...result,
         message: "No tienes canales activos para sincronizar.",
       });
     }
 
-    let channelsChecked = 0;
-    let videosFound = 0;
-    let videosAdded = 0;
-    let videosFiltered = 0;
-    let videosErrored = 0;
-    let quotaUsed = 0;
-
-    // Cache de IDs de videos ya presentes en playlists de YouTube
-    const playlistVideoIdsCache = new Map<string, Set<string>>();
-
-    const chunkSize = 10;
-    for (let i = 0; i < userChannels.length; i += chunkSize) {
-      const chunk = userChannels.slice(i, i + chunkSize);
-      // Re-fetch token per chunk — getValidYouTubeAccessToken returns cached token if still valid
-      const accessToken = await getValidYouTubeAccessToken(userId);
-      await Promise.all(chunk.map(async (channel) => {
-      channelsChecked++;
-
-      // Obtener reglas activas de este canal
-      const rules = await db
-        .select({
-          ruleId: channelRules.id,
-          filterType: channelRules.filterType,
-          filterValue: channelRules.filterValue,
-          excludeValue: channelRules.excludeValue,
-          includeShorts: channelRules.includeShorts,
-          targetPlaylistTableId: targetPlaylists.id,
-          targetPlaylistId: targetPlaylists.playlistId,
-          targetPlaylistName: targetPlaylists.playlistName,
-        })
-        .from(channelRules)
-        .innerJoin(targetPlaylists, eq(channelRules.targetPlaylistId, targetPlaylists.id))
-        .where(
-          and(
-            eq(channelRules.watchedChannelId, channel.id),
-            eq(channelRules.isActive, true),
-            eq(targetPlaylists.userId, userId)
-          )
-        );
-
-      if (rules.length === 0) return;
-
-      let channelVideos;
-      let videoDurations = new Map<string, number>();
-      try {
-        const allRecentVideos = await getLatestChannelVideos(channel.channelId);
-        // Filtrar videos publicados en las últimas 48hs
-        channelVideos = allRecentVideos.filter((v) => v.publishedAt >= windowStart);
-
-        if (channelVideos.length > 0) {
-          const videoIds = channelVideos.map((v) => v.videoId);
-          videoDurations = await getVideoDurations(accessToken, videoIds);
-          quotaUsed += Math.ceil(videoIds.length / 50); // 1 quota por cada 50 videos
-        }
-      } catch (feedErr) {
-        console.error(`Error al obtener RSS de canal ${channel.channelName}:`, feedErr);
-        return;
-      }
-
-      videosFound += channelVideos.length;
-
-      for (const rule of rules) {
-        // Cargar set de videos existentes en la playlist destino de YouTube
-        if (!playlistVideoIdsCache.has(rule.targetPlaylistId)) {
-          const ytVideoIds = await getPlaylistVideoIds(accessToken, rule.targetPlaylistId);
-          playlistVideoIdsCache.set(rule.targetPlaylistId, ytVideoIds);
-          quotaUsed += 1;
-        }
-        const existingInPlaylist = playlistVideoIdsCache.get(rule.targetPlaylistId)!;
-
-        for (const video of channelVideos) {
-          // 1. Condición incluyente de título
-          const passesInclusion = matchesTitleFilter(
-            video.title,
-            rule.filterType,
-            rule.filterValue
-          );
-          if (!passesInclusion) {
-            videosFiltered++;
-            await recordProcessedVideo({
-              videoId: video.videoId,
-              channelRuleId: rule.ruleId,
-              targetPlaylistId: rule.targetPlaylistTableId,
-              videoTitle: video.title,
-              videoUrl: video.url,
-              publishedAt: video.publishedAt,
-              status: "filtered",
-              errorMessage: "No cumple con la condición incluyente de título",
-            });
-            continue;
-          }
-
-          // 2. Condición excluyente de título (Requirement 1)
-          const isExcluded = isTitleExcluded(video.title, rule.excludeValue);
-          if (isExcluded) {
-            videosFiltered++;
-            await recordProcessedVideo({
-              videoId: video.videoId,
-              channelRuleId: rule.ruleId,
-              targetPlaylistId: rule.targetPlaylistTableId,
-              videoTitle: video.title,
-              videoUrl: video.url,
-              publishedAt: video.publishedAt,
-              status: "filtered",
-              errorMessage: "Excluido por condición de palabras clave en título",
-            });
-            continue;
-          }
-
-          // 3. Condición de Shorts
-          if (!rule.includeShorts) {
-            const duration = videoDurations.get(video.videoId) || 0;
-            // Si la duración es 60 segundos o menos, se asume que es un short y se excluye.
-            if (duration <= 120) {
-              videosFiltered++;
-              await recordProcessedVideo({
-                videoId: video.videoId,
-                channelRuleId: rule.ruleId,
-                targetPlaylistId: rule.targetPlaylistTableId,
-                videoTitle: video.title,
-                videoUrl: video.url,
-                publishedAt: video.publishedAt,
-                status: "filtered",
-                errorMessage: "Excluido por ser un Short (duración <= 120s)",
-              });
-              continue;
-            }
-          }
-
-          // 4. Regla para verificar que el video no exista ya en la lista (Requirement 8)
-          if (existingInPlaylist.has(video.videoId)) {
-            videosFiltered++;
-            await recordProcessedVideo({
-              videoId: video.videoId,
-              channelRuleId: rule.ruleId,
-              targetPlaylistId: rule.targetPlaylistTableId,
-              videoTitle: video.title,
-              videoUrl: video.url,
-              publishedAt: video.publishedAt,
-              status: "filtered",
-              errorMessage: "El video ya existía en la lista de reproducción destino",
-            });
-            continue;
-          }
-
-          // 4. Agregar a la lista de reproducción de YouTube
-          try {
-            await addVideoToPlaylist(accessToken, rule.targetPlaylistId, video.videoId);
-            quotaUsed += 50;
-            videosAdded++;
-            existingInPlaylist.add(video.videoId);
-
-            // Incrementar contador de la playlist en DB
-            await db
-              .update(targetPlaylists)
-              .set({
-                videosAddedCount: sql`${targetPlaylists.videosAddedCount} + 1`,
-              })
-              .where(eq(targetPlaylists.id, rule.targetPlaylistTableId));
-
-            await recordProcessedVideo({
-              videoId: video.videoId,
-              channelRuleId: rule.ruleId,
-              targetPlaylistId: rule.targetPlaylistTableId,
-              videoTitle: video.title,
-              videoUrl: video.url,
-              publishedAt: video.publishedAt,
-              status: "added",
-              errorMessage: null,
-            });
-          } catch (addErr: unknown) {
-            console.error(`Error agregando video ${video.videoId} a playlist ${rule.targetPlaylistId}:`, addErr);
-            videosErrored++;
-            const errMsg = addErr instanceof Error ? addErr.message : "Error al agregar a YouTube";
-            await recordProcessedVideo({
-              videoId: video.videoId,
-              channelRuleId: rule.ruleId,
-              targetPlaylistId: rule.targetPlaylistTableId,
-              videoTitle: video.title,
-              videoUrl: video.url,
-              publishedAt: video.publishedAt,
-              status: "error",
-              errorMessage: errMsg,
-            });
-          }
-        }
-      }
-
-      // Actualizar timestamp de revisión del canal
-      await db
-        .update(watchedChannels)
-        .set({ lastCheckedAt: new Date() })
-        .where(eq(watchedChannels.id, channel.id));
-      }));
-    }
-
-    const finishedAt = new Date();
-
-    // Guardar registro de la sincronización en syncLogs
-    await db.insert(syncLogs).values({
-      userId,
-      executionType: "manual",
-      channelsChecked,
-      videosFound,
-      videosAdded,
-      videosFiltered,
-      videosErrored,
-      quotaUsed,
-      windowStart,
-      windowEnd,
-      startedAt,
-      finishedAt,
-    });
-
     return NextResponse.json({
       success: true,
-      channelsChecked,
-      videosFound,
-      videosAdded,
-      videosFiltered,
-      videosErrored,
-      quotaUsed,
-      message: `Sincronización completada: ${videosAdded} ${videosAdded === 1 ? "video agregado" : "videos agregados"}.`,
+      ...result,
+      message: `Sincronización completada: ${result.videosAdded} ${
+        result.videosAdded === 1 ? "video agregado" : "videos agregados"
+      }.`,
     });
   } catch (error: unknown) {
     console.error("Error en sincronización manual:", error);
@@ -295,43 +50,5 @@ export async function POST(req: NextRequest) {
     }
     const msg = error instanceof Error ? error.message : "Error interno del servidor";
     return NextResponse.json({ error: msg }, { status: 500 });
-  }
-}
-
-async function recordProcessedVideo(data: {
-  videoId: string;
-  channelRuleId: string;
-  targetPlaylistId: string;
-  videoTitle: string;
-  videoUrl: string;
-  publishedAt: Date;
-  status: "added" | "filtered" | "error";
-  errorMessage: string | null;
-}) {
-  try {
-    // Si ya existe registro de este video para esta regla, actualizar; de lo contrario, insertar
-    await db
-      .insert(processedVideos)
-      .values({
-        videoId: data.videoId,
-        channelRuleId: data.channelRuleId,
-        targetPlaylistId: data.targetPlaylistId,
-        videoTitle: data.videoTitle,
-        videoUrl: data.videoUrl,
-        publishedAt: data.publishedAt,
-        status: data.status,
-        errorMessage: data.errorMessage,
-        processedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [processedVideos.videoId, processedVideos.channelRuleId],
-        set: {
-          status: data.status,
-          errorMessage: data.errorMessage,
-          processedAt: new Date(),
-        },
-      });
-  } catch (e) {
-    console.error("Error guardando video procesado:", e);
   }
 }

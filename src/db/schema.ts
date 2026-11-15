@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -127,6 +128,12 @@ export const targetPlaylists = pgTable("target_playlists", {
   playlistId: text("playlist_id").notNull(),
   playlistName: text("playlist_name").notNull(),
   videosAddedCount: integer("videos_added_count").notNull().default(0),
+  // Metadatos de YouTube (se actualizan al sincronizar las listas)
+  description: text("description"),
+  thumbnailUrl: text("thumbnail_url"),
+  itemCount: integer("item_count"),
+  privacyStatus: text("privacy_status"), // 'public' | 'unlisted' | 'private'
+  lastSyncedAt: timestamp("last_synced_at", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
@@ -167,10 +174,13 @@ export const processedVideos = pgTable(
     publishedAt: timestamp("published_at", { mode: "date" }),
     status: videoStatusEnum("status").notNull(),
     errorMessage: text("error_message"),
+    // Ejecución de sincronización que procesó este video (null en registros anteriores a esta columna)
+    syncLogId: text("sync_log_id").references(() => syncLogs.id, { onDelete: "set null" }),
     processedAt: timestamp("processed_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("video_rule_idx").on(table.videoId, table.channelRuleId),
+    index("processed_videos_sync_log_idx").on(table.syncLogId),
   ]
 );
 
@@ -273,6 +283,10 @@ export const processedVideosRelations = relations(
     targetPlaylist: one(targetPlaylists, {
       fields: [processedVideos.targetPlaylistId],
       references: [targetPlaylists.id],
+    }),
+    syncLog: one(syncLogs, {
+      fields: [processedVideos.syncLogId],
+      references: [syncLogs.id],
     }),
   })
 );

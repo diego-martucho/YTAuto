@@ -157,7 +157,7 @@ export async function GET(req: NextRequest) {
     // 8. Última sincronización
     const lastSyncLog = await db.query.syncLogs.findFirst({
       where: eq(syncLogs.userId, userId),
-      orderBy: desc(syncLogs.finishedAt),
+      orderBy: desc(syncLogs.startedAt),
     });
 
     // 9. Top canales con más videos agregados
