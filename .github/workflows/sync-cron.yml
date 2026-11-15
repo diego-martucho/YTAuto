@@ -3,7 +3,7 @@ name: YTAuto Schedule Check
 on:
   schedule:
     # Verifica cada hora si se alcanzó el horario diario configurado por el usuario en la app
-    - cron: '0 * * * *'
+    - cron: '5 * * * *'
   workflow_dispatch:
 
 jobs:

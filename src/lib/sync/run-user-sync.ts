@@ -227,12 +227,12 @@ export async function runUserSync(
           continue;
         }
 
-        // 3. Shorts
+        // 3. Shorts (3 minutos = 180 segundos o menos)
         if (!rule.includeShorts) {
           const duration = videoDurations.get(video.videoId) || 0;
-          if (duration <= 120) {
+          if (duration <= 180) {
             result.videosFiltered++;
-            await record(video, rule, "filtered", "Excluido por ser un Short (duración <= 120s)");
+            await record(video, rule, "filtered", "Excluido por ser un Short (duración <= 180s)");
             continue;
           }
         }
