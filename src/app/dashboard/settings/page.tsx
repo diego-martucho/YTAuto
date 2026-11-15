@@ -89,6 +89,7 @@ export default function SettingsPage() {
   const [isImporting, setIsImporting] = useState(false)
   const [backupPreview, setBackupPreview] = useState<BackupPreview | null>(null)
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
+  const [importSettings, setImportSettings] = useState(true)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const fetchSettings = async () => {
@@ -209,6 +210,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           backup: backupPreview.rawPayload,
           mode: importMode,
+          includeSettings: importSettings,
         }),
       })
 
@@ -218,6 +220,9 @@ export default function SettingsPage() {
       }
 
       toast.success(data.message || 'Configuración importada correctamente')
+      for (const warning of (data.warnings as string[] | undefined) ?? []) {
+        toast.warning(warning, { duration: 10000 })
+      }
       setBackupPreview(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       fetchSettings()
@@ -587,19 +592,36 @@ export default function SettingsPage() {
             >
               <p className="text-xs font-semibold">Reemplazar toda la configuración</p>
               <p className="text-[11px] opacity-80 mt-0.5">
-                Limpia la configuración actual y deja únicamente lo que está en el archivo.
+                Deja únicamente lo que está en el archivo y elimina el resto.
               </p>
             </button>
           </div>
 
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            En ambos modos se sobrescriben tus preferencias (horario y zona horaria) con las del archivo.
+          <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+            <div className="min-w-0">
+              <Label htmlFor="importSettings" className="text-slate-200 text-xs font-semibold">
+                Restaurar también mis preferencias
+              </Label>
+              <p className="text-[11px] text-slate-400 mt-0.5">Horario de sincronización, zona horaria y alertas.</p>
+            </div>
+            <Switch
+              id="importSettings"
+              checked={importSettings}
+              onCheckedChange={setImportSettings}
+              className="data-checked:bg-emerald-500 shrink-0"
+            />
+          </div>
+
+          <ul className="text-[11px] text-slate-400 leading-relaxed list-disc pl-4 space-y-0.5">
+            <li>Se aplica todo junto: si algo falla, no se modifica nada.</li>
+            <li>Las listas se verifican contra tu cuenta de YouTube; las que no existan allí se omiten junto con sus reglas.</li>
+            <li>Las reglas que ya tenés idénticas se conservan con su historial de videos.</li>
             {importMode === 'replace' && (
-              <span className="block mt-1 text-amber-300/90">
-                ⚠️ Reemplazar también borra el historial de videos procesados (registros y estadísticas), porque está asociado a las reglas actuales.
-              </span>
+              <li className="text-amber-300/90">
+                Se eliminarán los canales, listas y reglas que no estén en el archivo (y el historial de esas reglas).
+              </li>
             )}
-          </p>
+          </ul>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/[0.06]">
             <Button
