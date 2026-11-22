@@ -365,10 +365,19 @@ export function SyncDetailDialog({ sync, onOpenChange }: SyncDetailDialogProps) 
             {/* Notas al pie */}
             <div className="px-4 sm:px-5 py-2.5 border-t border-white/[0.06] bg-black/20 text-[11px] text-slate-500 flex items-start gap-1.5 shrink-0">
               <Info className="h-3.5 w-3.5 shrink-0 mt-px" />
-              <span>
-                Se listan los videos evaluados en esta ejecución; los que ya se habían evaluado antes no se repiten.
-                {approximate && ' Esta ejecución es anterior al registro detallado, así que la lista se reconstruyó por horario y puede estar incompleta.'}
-                {truncated && ' Se muestran los primeros 1000 videos.'}
+              <span className="flex flex-col gap-0.5">
+                <span>
+                  Cada sincronización revisa los videos de las últimas 48 h, así que algunos ya los había revisado la
+                  ejecución anterior. Esos no se vuelven a procesar ni aparecen acá; por eso &ldquo;Encontrados&rdquo; puede ser
+                  mayor que la suma del resto.
+                </span>
+                {approximate && (
+                  <span className="text-amber-300/80">
+                    Esta ejecución es anterior a la mejora de los registros: sus videos se estimaron según la hora en que se
+                    procesaron, así que puede faltar alguno o aparecer con otro estado.
+                  </span>
+                )}
+                {truncated && <span>Se muestran los primeros 1000 videos.</span>}
               </span>
             </div>
           </>
