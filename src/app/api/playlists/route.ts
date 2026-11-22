@@ -113,6 +113,11 @@ export async function POST(req: NextRequest) {
     const userId = session.user.id;
     const body = await req.json();
     const { action } = body;
+    // IDs de YouTube de las listas que el usuario quiere seguir en YTAuto.
+    // Si no se envía, solo se actualizan las listas que ya se siguen (nunca se agregan todas).
+    const selectedPlaylistIds: string[] | null = Array.isArray(body.selectedPlaylistIds)
+      ? body.selectedPlaylistIds.filter((id: unknown): id is string => typeof id === "string")
+      : null;
 
     if (action === "sync") {
       const accessToken = await getValidYouTubeAccessToken(userId);
@@ -125,11 +130,12 @@ export async function POST(req: NextRequest) {
 
       const existingByYtId = new Map(existingPlaylists.map((p) => [p.playlistId, p]));
       const apiIds = new Set(apiPlaylists.map((p) => p.id));
+      const selected = new Set(selectedPlaylistIds ?? existingPlaylists.map((p) => p.playlistId));
       const now = new Date();
 
-      // Insert new ones
+      // Insert newly selected ones
       const newPlaylistsToInsert = apiPlaylists
-        .filter((p) => !existingByYtId.has(p.id))
+        .filter((p) => selected.has(p.id) && !existingByYtId.has(p.id))
         .map((p) => ({
           userId,
           playlistId: p.id,
@@ -141,9 +147,9 @@ export async function POST(req: NextRequest) {
           lastSyncedAt: now,
         }));
 
-      // Update name + metadata of existing ones (todo en una sola ida a la base)
+      // Update name + metadata of the ones that stay (todo en una sola ida a la base)
       const updates = apiPlaylists
-        .filter((p) => existingByYtId.has(p.id))
+        .filter((p) => selected.has(p.id) && existingByYtId.has(p.id))
         .map((p) =>
           db
             .update(targetPlaylists)
@@ -158,9 +164,15 @@ export async function POST(req: NextRequest) {
             .where(eq(targetPlaylists.id, existingByYtId.get(p.id)!.id))
         );
 
-      // Delete missing ones (deleted in YouTube). Sus reglas se eliminan en cascada,
-      // por eso se informan al usuario.
-      const missingPlaylists = existingPlaylists.filter((p) => !apiIds.has(p.playlistId));
+      // Quitar las que ya no existen en YouTube y las que el usuario desmarcó.
+      // Sus reglas se eliminan en cascada, por eso se informan al usuario.
+      const missingPlaylists = existingPlaylists.filter(
+        (p) => !apiIds.has(p.playlistId) || !selected.has(p.playlistId)
+      );
+      const renamedCount = apiPlaylists.filter((p) => {
+        const existing = existingByYtId.get(p.id);
+        return selected.has(p.id) && existing && existing.playlistName !== p.title;
+      }).length;
 
       const statements = [
         ...(newPlaylistsToInsert.length > 0 ? [db.insert(targetPlaylists).values(newPlaylistsToInsert)] : []),
@@ -185,7 +197,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         playlists: allPlaylists,
         added: newPlaylistsToInsert.length,
-        removed: missingPlaylists.map((p) => ({ playlistName: p.playlistName, rulesCount: p.rulesCount })),
+        renamed: renamedCount,
+        removed: missingPlaylists.map((p) => ({
+          playlistName: p.playlistName,
+          rulesCount: p.rulesCount,
+          reason: apiIds.has(p.playlistId) ? "deselected" : "deleted_in_youtube",
+        })),
       });
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -7,7 +7,6 @@ import {
   RefreshCw,
   ListMusic,
   Trash2,
-  Loader2,
   Search,
   X,
   ArrowUpDown,
@@ -34,6 +33,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFitPageSize, usePagination } from '@/hooks/use-fit-page-size'
+import { PlaylistSyncDialog, type PlaylistSyncResult } from '@/components/playlists/playlist-sync-dialog'
 import { normalizeText } from '@/lib/utils'
 
 interface SourceChannel {
@@ -142,7 +142,7 @@ function SourceChannels({ channels }: { channels: SourceChannel[] }) {
 export default function PlaylistsPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [loading, setLoading] = useState(true)
-  const [isSyncing, setIsSyncing] = useState(false)
+  const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false)
 
   // Custom Delete Modal state
   const [playlistToDelete, setPlaylistToDelete] = useState<Playlist | null>(null)
@@ -178,41 +178,29 @@ export default function PlaylistsPage() {
     }
   }
 
-  const handleSync = async () => {
-    try {
-      setIsSyncing(true)
-      const res = await fetch('/api/playlists', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync' }),
-      })
+  // Resultado de la sincronización selectiva (diálogo)
+  const handleSyncApplied = (data: PlaylistSyncResult) => {
+    setPlaylists(data.playlists)
 
-      if (!res.ok) throw new Error('Error al sincronizar listas')
+    const parts: string[] = []
+    if (data.added > 0) parts.push(`${data.added} ${data.added === 1 ? 'agregada' : 'agregadas'}`)
+    if (data.renamed > 0) parts.push(`${data.renamed} ${data.renamed === 1 ? 'renombrada' : 'renombradas'}`)
+    const deselected = data.removed.filter((r) => r.reason === 'deselected')
+    if (deselected.length > 0) parts.push(`${deselected.length} ${deselected.length === 1 ? 'quitada' : 'quitadas'}`)
+    toast.success(parts.length > 0 ? `Listas actualizadas: ${parts.join(' · ')}` : 'Listas actualizadas con los datos de YouTube')
 
-      const data: {
-        playlists: Playlist[]
-        added: number
-        removed: Array<{ playlistName: string; rulesCount: number }>
-      } = await res.json()
-      setPlaylists(data.playlists)
-
-      const parts = ['Listas sincronizadas correctamente']
-      if (data.added > 0) parts.push(`${data.added} ${data.added === 1 ? 'nueva' : 'nuevas'}`)
-      toast.success(parts.join(' · '))
-
-      if (data.removed.length > 0) {
-        const lostRules = data.removed.reduce((acc, r) => acc + r.rulesCount, 0)
-        toast.warning(
-          `${data.removed.length} ${data.removed.length === 1 ? 'lista ya no existe' : 'listas ya no existen'} en tu YouTube y se quitaron de YTAuto` +
-            (lostRules > 0 ? ` junto con ${lostRules} ${lostRules === 1 ? 'regla' : 'reglas'}` : '') +
-            `: ${data.removed.map((r) => r.playlistName).join(', ')}`,
-          { duration: 10000 }
-        )
-      }
-    } catch {
-      toast.error('No se pudieron sincronizar las listas')
-    } finally {
-      setIsSyncing(false)
+    const deletedInYt = data.removed.filter((r) => r.reason === 'deleted_in_youtube')
+    if (deletedInYt.length > 0) {
+      toast.warning(
+        `${deletedInYt.length === 1 ? 'Se quitó 1 lista que ya no existe' : `Se quitaron ${deletedInYt.length} listas que ya no existen`} en YouTube: ${deletedInYt
+          .map((r) => r.playlistName)
+          .join(', ')}`,
+        { duration: 10000 }
+      )
+    }
+    const lostRules = data.removed.reduce((acc, r) => acc + r.rulesCount, 0)
+    if (lostRules > 0) {
+      toast.info(`${lostRules} ${lostRules === 1 ? 'regla asociada se eliminó' : 'reglas asociadas se eliminaron'} junto con las listas quitadas.`)
     }
   }
 
@@ -309,11 +297,10 @@ export default function PlaylistsPage() {
         </div>
 
         <Button
-          onClick={handleSync}
-          disabled={isSyncing}
+          onClick={() => setIsSyncDialogOpen(true)}
           className="bg-violet-600 hover:bg-violet-700 text-white border-none shadow-sm shadow-violet-600/30 font-semibold cursor-pointer shrink-0 w-full sm:w-auto"
         >
-          {isSyncing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
+          <RefreshCw className="mr-1 h-4 w-4" />
           Sincronizar desde YouTube
         </Button>
       </div>
@@ -421,7 +408,7 @@ export default function PlaylistsPage() {
             </div>
             <h3 className="text-lg font-semibold text-slate-100 font-display">No hay listas de reproducción</h3>
             <p className="text-slate-400 mt-1 max-w-sm">
-              No tienes listas sincronizadas. Haz clic en &ldquo;Sincronizar desde YouTube&rdquo; para importar tus listas.
+              No tienes listas en YTAuto. Haz clic en &ldquo;Sincronizar desde YouTube&rdquo; y elegí cuáles querés usar.
             </p>
           </div>
         ) : filteredPlaylists.length === 0 ? (
@@ -584,6 +571,12 @@ export default function PlaylistsPage() {
           }
         />
       )}
+
+      <PlaylistSyncDialog
+        open={isSyncDialogOpen}
+        onOpenChange={setIsSyncDialogOpen}
+        onApplied={handleSyncApplied}
+      />
 
       {/* Modal de confirmación para eliminar lista con estilos de la app */}
       <ConfirmDialog

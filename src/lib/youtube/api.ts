@@ -19,6 +19,8 @@ export interface YouTubePlaylist {
   thumbnailUrl: string;
   itemCount: number;
   privacyStatus: string | null;
+  /** Fecha de creación de la lista en YouTube (ISO). */
+  publishedAt: string | null;
 }
 
 interface YouTubeSearchResult {
@@ -165,6 +167,7 @@ export async function getUserPlaylists(
           "",
         itemCount: item.contentDetails?.itemCount || 0,
         privacyStatus: item.status?.privacyStatus ?? null,
+        publishedAt: item.snippet?.publishedAt ?? null,
       });
     }
 
